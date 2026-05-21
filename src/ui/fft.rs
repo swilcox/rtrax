@@ -101,9 +101,10 @@ impl Spectrum {
                     peak = mag;
                 }
             }
-            // Compress to roughly [0, 1] via log scaling. The constant 0.005
-            // is just a feel-good floor — anything smaller is rendered as 0.
-            let norm = (peak / FFT_SIZE as f32).max(0.005);
+            // Compress to roughly [0, 1] via log scaling. The tiny floor only
+            // exists to keep log10 finite — it sits well below the bottom of
+            // the dB window so true silence maps to v = 0.
+            let norm = (peak / FFT_SIZE as f32).max(1e-6);
             let db = 20.0 * norm.log10(); // dBFS-ish (negative)
             let v = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
 
