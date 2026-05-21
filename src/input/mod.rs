@@ -17,6 +17,7 @@ pub enum Action {
     FocusBrowser,
     CycleFocus,
     CycleTheme,
+    ToggleInfo,
     Help,
     Up,
     Down,
@@ -51,6 +52,7 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.focus_browser, Action::FocusBrowser),
         (&keymap.cycle_focus, Action::CycleFocus),
         (&keymap.cycle_theme, Action::CycleTheme),
+        (&keymap.toggle_info, Action::ToggleInfo),
         (&keymap.help, Action::Help),
     ];
 

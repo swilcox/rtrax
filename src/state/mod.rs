@@ -49,6 +49,22 @@ pub struct SharedState {
     pub master_peak_l_bits: AtomicU32,
     pub master_peak_r_bits: AtomicU32,
 
+    /// Most-recent non-empty instrument number seen per channel in the pattern
+    /// stream (1-based to match libopenmpt's pattern formatting; 0 = unseen).
+    /// Sticky: rows without an instrument event keep the previous value, which
+    /// is what trackers actually do when a note continues with no inst change.
+    pub last_instrument: [AtomicI32; MAX_CHANNELS],
+
+    /// Sample and instrument names captured at load time. Indexed in order
+    /// returned by libopenmpt — i.e. pattern instrument "01" maps to slot 0.
+    pub sample_names: Mutex<Vec<String>>,
+    pub instrument_names: Mutex<Vec<String>>,
+    /// Free-form song message / liner notes from the module file.
+    pub song_message: Mutex<String>,
+    /// Artist + tracker metadata strings.
+    pub artist: Mutex<String>,
+    pub tracker: Mutex<String>,
+
     /// One-line song title from libopenmpt metadata, plus tracker/format.
     pub title: Mutex<String>,
     pub format_label: Mutex<String>,
@@ -92,6 +108,12 @@ impl SharedState {
             vu_bits: std::array::from_fn(|_| AtomicU32::new(0)),
             master_peak_l_bits: AtomicU32::new(0),
             master_peak_r_bits: AtomicU32::new(0),
+            last_instrument: std::array::from_fn(|_| AtomicI32::new(0)),
+            sample_names: Mutex::new(Vec::new()),
+            instrument_names: Mutex::new(Vec::new()),
+            song_message: Mutex::new(String::new()),
+            artist: Mutex::new(String::new()),
+            tracker: Mutex::new(String::new()),
             title: Mutex::new(String::new()),
             format_label: Mutex::new(String::new()),
             current_path: Mutex::new(None),
@@ -144,6 +166,26 @@ impl SharedState {
         let l = f32::from_bits(self.master_peak_l_bits.load(Ordering::Relaxed));
         let r = f32::from_bits(self.master_peak_r_bits.load(Ordering::Relaxed));
         (l, r)
+    }
+
+    pub fn set_last_instrument(&self, channel: usize, instrument: i32) {
+        if channel < MAX_CHANNELS {
+            self.last_instrument[channel].store(instrument, Ordering::Relaxed);
+        }
+    }
+
+    pub fn last_instrument(&self, channel: usize) -> i32 {
+        if channel < MAX_CHANNELS {
+            self.last_instrument[channel].load(Ordering::Relaxed)
+        } else {
+            0
+        }
+    }
+
+    pub fn clear_last_instruments(&self) {
+        for slot in self.last_instrument.iter() {
+            slot.store(0, Ordering::Relaxed);
+        }
     }
 }
 

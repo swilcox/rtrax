@@ -35,6 +35,7 @@ pub fn render(f: &mut Frame, area: Rect, theme: &Theme) {
         line("/", "focus browser"),
         line("tab", "cycle focus between panes"),
         line("t", "cycle theme"),
+        line("i", "toggle info panel (samples / metadata)"),
         line("?", "toggle this help"),
         line("q / esc", "quit"),
     ];

@@ -88,6 +88,7 @@ pub struct App {
     config: Config,
     focus: Focus,
     show_help: bool,
+    show_info: bool,
     should_quit: bool,
     volume_millibel: i32,
     /// Most recent path we asked the audio thread to play. Drives n/p in the
@@ -134,6 +135,7 @@ impl App {
             config,
             focus: Focus::Pattern,
             show_help: false,
+            show_info: false,
             should_quit: false,
             volume_millibel: 0,
             current_path: initial_path,
@@ -202,6 +204,7 @@ impl App {
                 }
             }
             Action::Help => self.show_help = !self.show_help,
+            Action::ToggleInfo => self.show_info = !self.show_info,
             Action::PlayPause => {
                 let playing = self.state.playing.load(Ordering::Relaxed);
                 self.audio.send(if playing {
@@ -344,14 +347,18 @@ impl App {
                 &self.theme,
                 self.focus == Focus::Pattern,
             );
-            widgets::meters::render(
-                f,
-                main[2],
-                &self.state,
-                &self.meter_state,
-                &self.theme,
-                false,
-            );
+            if self.show_info {
+                widgets::info::render(f, main[2], &self.state, &self.theme);
+            } else {
+                widgets::meters::render(
+                    f,
+                    main[2],
+                    &self.state,
+                    &self.meter_state,
+                    &self.theme,
+                    false,
+                );
+            }
 
             // Spectrum on the left, master L/R meter on the right.
             let bottom = Layout::default()

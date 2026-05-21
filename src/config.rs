@@ -47,6 +47,7 @@ pub struct KeyMap {
     pub focus_browser: Vec<String>,
     pub cycle_focus: Vec<String>,
     pub cycle_theme: Vec<String>,
+    pub toggle_info: Vec<String>,
     pub help: Vec<String>,
 }
 
@@ -66,6 +67,7 @@ impl Default for KeyMap {
             focus_browser: vec!["/".into()],
             cycle_focus: vec!["tab".into()],
             cycle_theme: vec!["t".into()],
+            toggle_info: vec!["i".into()],
             help: vec!["?".into()],
         }
     }

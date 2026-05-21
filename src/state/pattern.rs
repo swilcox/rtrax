@@ -14,6 +14,10 @@ pub struct PatternRow {
     pub row_index: i32,
     /// One pre-formatted cell per channel, e.g. `"C-5 01 .. A20"`.
     pub cells: Vec<String>,
+    /// Raw instrument number per channel from libopenmpt (0 = none). Captured
+    /// alongside the formatted string so the UI doesn't have to parse it back
+    /// out of the cell text (which is hex-formatted for most module formats).
+    pub instruments: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Default)]

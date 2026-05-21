@@ -17,6 +17,7 @@ use anyhow::{anyhow, Context, Result};
 use command::{Command, LoadedModule, SendModule};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Receiver, Sender};
+use openmpt::module::iteration::ModuleCommandIndex;
 use openmpt::module::metadata::MetadataKey;
 use openmpt::module::{Logger, Module};
 use rtrb::Producer;
@@ -233,6 +234,11 @@ impl CallbackState {
                     path,
                     title,
                     format_label,
+                    sample_names,
+                    instrument_names,
+                    song_message,
+                    artist,
+                    tracker,
                 } = loaded;
 
                 let old = self.module.replace(module);
@@ -251,6 +257,22 @@ impl CallbackState {
                 if let Ok(mut p) = self.state.current_path.try_lock() {
                     *p = path;
                 }
+                if let Ok(mut v) = self.state.sample_names.try_lock() {
+                    *v = sample_names;
+                }
+                if let Ok(mut v) = self.state.instrument_names.try_lock() {
+                    *v = instrument_names;
+                }
+                if let Ok(mut s) = self.state.song_message.try_lock() {
+                    *s = song_message;
+                }
+                if let Ok(mut s) = self.state.artist.try_lock() {
+                    *s = artist;
+                }
+                if let Ok(mut s) = self.state.tracker.try_lock() {
+                    *s = tracker;
+                }
+                self.state.clear_last_instruments();
                 self.last_snapshot_row = -1;
                 self.last_snapshot_pattern = -1;
             }
@@ -273,6 +295,7 @@ impl CallbackState {
                     slot.store(0u32, Ordering::Relaxed);
                 }
                 self.state.set_master_peak(0.0, 0.0);
+                self.state.clear_last_instruments();
             }
             Command::SeekRelative(delta_secs) => {
                 if let Some(send_module) = self.module.as_mut() {
@@ -369,6 +392,7 @@ impl CallbackState {
         if pattern == self.last_snapshot_pattern && row == self.last_snapshot_row {
             return;
         }
+        let pattern_changed = pattern != self.last_snapshot_pattern;
         self.last_snapshot_pattern = pattern;
         self.last_snapshot_row = row;
 
@@ -381,6 +405,27 @@ impl CallbackState {
             .current_rows_in_pattern
             .store(num_rows, Ordering::Relaxed);
 
+        // First time we've seen this pattern (initial play, order change, seek
+        // into a different pattern): walk every row from 0..=current to
+        // reconstruct each channel's last-seen instrument. Cheap to do once
+        // per pattern boundary, and catches sustained notes whose trigger row
+        // is older than our 16-row snapshot window.
+        if pattern_changed && num_rows > 0 {
+            let upto = row.min(num_rows - 1);
+            for r in 0..=upto {
+                if let Some(mut row_h) = pat.get_row_by_number(r) {
+                    for ch in 0..num_channels as i32 {
+                        if let Some(mut cell) = row_h.get_cell_by_channel(ch) {
+                            let inst = cell.get_data_by_command(ModuleCommandIndex::Instrument);
+                            if inst > 0 {
+                                self.state.set_last_instrument(ch as usize, inst as i32);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let mut rows: Vec<PatternRow> = Vec::with_capacity(WINDOW_ROWS);
         let start = row - WINDOW_RADIUS as i32;
         for offset in 0..WINDOW_ROWS as i32 {
@@ -389,28 +434,46 @@ impl CallbackState {
                 rows.push(PatternRow {
                     row_index: r,
                     cells: vec![String::new(); num_channels],
+                    instruments: vec![0u8; num_channels],
                 });
                 continue;
             }
             let mut cells: Vec<String> = Vec::with_capacity(num_channels);
+            let mut instruments: Vec<u8> = Vec::with_capacity(num_channels);
             if let Some(mut row_h) = pat.get_row_by_number(r) {
                 for ch in 0..num_channels as i32 {
                     if let Some(mut cell) = row_h.get_cell_by_channel(ch) {
                         cells.push(cell.get_formatted(0, false));
+                        instruments.push(cell.get_data_by_command(ModuleCommandIndex::Instrument));
                     } else {
                         cells.push(String::new());
+                        instruments.push(0);
                     }
                 }
             } else {
                 cells.resize(num_channels, String::new());
+                instruments.resize(num_channels, 0);
             }
             rows.push(PatternRow {
                 row_index: r,
                 cells,
+                instruments,
             });
         }
 
         let current_index = WINDOW_RADIUS;
+
+        // Sticky per-channel last-seen instrument. We scan the whole window
+        // history (rows up to and including the current one), not just the
+        // current row — if a snapshot was skipped or this is the first one
+        // for this pattern, recent instrument events would otherwise be lost.
+        for row_data in rows.iter().take(current_index + 1) {
+            for (ch, &inst) in row_data.instruments.iter().enumerate() {
+                if inst > 0 {
+                    self.state.set_last_instrument(ch, inst as i32);
+                }
+            }
+        }
 
         try_publish(&self.state.pattern_window, |slot| {
             *slot = PatternWindow {
@@ -437,11 +500,36 @@ pub fn load_module(path: &Path) -> Result<LoadedModule> {
     let type_long = module
         .get_metadata(MetadataKey::TypeName)
         .unwrap_or_default();
+    let song_message = module
+        .get_metadata(MetadataKey::SongMessage)
+        .unwrap_or_default();
+    let artist = module
+        .get_metadata(MetadataKey::ModuleArtist)
+        .unwrap_or_default();
+    let tracker = module
+        .get_metadata(MetadataKey::ModuleTracker)
+        .unwrap_or_default();
+
+    let num_samples = module.get_num_samples().max(0);
+    let mut sample_names = Vec::with_capacity(num_samples as usize);
+    for i in 0..num_samples {
+        sample_names.push(module.get_sample_name(i));
+    }
+    let num_instruments = module.get_num_instruments().max(0);
+    let mut instrument_names = Vec::with_capacity(num_instruments as usize);
+    for i in 0..num_instruments {
+        instrument_names.push(module.get_instrument_name(i));
+    }
 
     Ok(LoadedModule {
         module: SendModule::new(module),
         path: Some(path.to_path_buf()),
         title,
         format_label: type_long,
+        sample_names,
+        instrument_names,
+        song_message,
+        artist,
+        tracker,
     })
 }

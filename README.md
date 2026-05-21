@@ -61,6 +61,7 @@ buffer on modest hardware.
 | `/`       | Focus file browser           |
 | `Tab`     | Cycle focus                  |
 | `t`       | Cycle theme                  |
+| `i`       | Toggle info panel (samples + metadata) |
 | `?`       | Help overlay                 |
 | `q`       | Quit                         |
 

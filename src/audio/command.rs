@@ -30,6 +30,13 @@ pub struct LoadedModule {
     pub path: Option<PathBuf>,
     pub title: String,
     pub format_label: String,
+    /// Sample names in libopenmpt index order. Pattern instrument "01" maps to
+    /// `sample_names[0]`. May be empty for formats with no samples.
+    pub sample_names: Vec<String>,
+    pub instrument_names: Vec<String>,
+    pub song_message: String,
+    pub artist: String,
+    pub tracker: String,
 }
 
 pub enum Command {
