@@ -1,0 +1,35 @@
+[package]
+name = "rtrax"
+version = "0.1.0"
+edition = "2021"
+description = "TUI MOD/XM/IT/S3M/MTM module player"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+openmpt = "0.3"
+cpal = "0.15"
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = "0.28"
+rustfft = "6"
+rtrb = "0.3"
+crossbeam-channel = "0.5"
+walkdir = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+dirs = "5"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[[example]]
+name = "load_print"
+path = "examples/load_print.rs"
+
+[[example]]
+name = "play"
+path = "examples/play.rs"

@@ -1,0 +1,56 @@
+# Cargo build artifacts
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.\#*
+\#*\#
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Local environment / config overrides
+.env
+.env.local
+*.local
+
+# Logs (rtrax writes to $XDG_CACHE_HOME, but in case anyone sets it locally)
+*.log
+*.log.*
+
+# Test modules — don't commit copyrighted music files
+*.mod
+*.xm
+*.it
+*.s3m
+*.mtm
+*.mptm
+*.stm
+*.ult
+
+# Code-review graph cache (regenerated from source)
+.code-review-graph/
+
+# Per-user Claude Code state (remove this line if you want team-shared settings)
+.claude/
+
+# Misc
+*.bak
+*.orig
+*.rej
