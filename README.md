@@ -4,6 +4,11 @@ A TUI module player for `.mod` / `.xm` / `.it` / `.s3m` / `.mtm` (and anything
 else libopenmpt reads). Per-channel level meters, scrolling pattern view,
 master spectrum analyzer, file browser. macOS + Linux.
 
+![rtrax screenshot](docs/screenshot.png)
+
+> The image above is a placeholder mockup — swap in a real terminal capture
+> by overwriting `docs/screenshot.png`.
+
 ## Install
 
 System library — libopenmpt is a runtime dependency, not vendored.
