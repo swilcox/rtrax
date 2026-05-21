@@ -42,6 +42,13 @@ pub struct SharedState {
     /// Each value is `f32::to_bits()`.
     pub vu_bits: [AtomicU32; MAX_CHANNELS * 2],
 
+    /// Post-mix master output peak for the most recent audio buffer, per side.
+    /// f32 bits in [0, 1]. Computed directly from the decoded interleaved
+    /// buffer in the cpal callback, so this reflects what's actually being
+    /// sent to the device — including master gain and any clipping headroom.
+    pub master_peak_l_bits: AtomicU32,
+    pub master_peak_r_bits: AtomicU32,
+
     /// One-line song title from libopenmpt metadata, plus tracker/format.
     pub title: Mutex<String>,
     pub format_label: Mutex<String>,
@@ -83,6 +90,8 @@ impl SharedState {
             position_secs_bits: AtomicU64Pair::new(0),
             duration_secs_bits: AtomicU64Pair::new(0),
             vu_bits: std::array::from_fn(|_| AtomicU32::new(0)),
+            master_peak_l_bits: AtomicU32::new(0),
+            master_peak_r_bits: AtomicU32::new(0),
             title: Mutex::new(String::new()),
             format_label: Mutex::new(String::new()),
             current_path: Mutex::new(None),
@@ -122,6 +131,19 @@ impl SharedState {
 
     pub fn set_duration_secs(&self, v: f64) {
         self.duration_secs_bits.store(v.to_bits());
+    }
+
+    pub fn set_master_peak(&self, left: f32, right: f32) {
+        self.master_peak_l_bits
+            .store(left.to_bits(), Ordering::Relaxed);
+        self.master_peak_r_bits
+            .store(right.to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn master_peak(&self) -> (f32, f32) {
+        let l = f32::from_bits(self.master_peak_l_bits.load(Ordering::Relaxed));
+        let r = f32::from_bits(self.master_peak_r_bits.load(Ordering::Relaxed));
+        (l, r)
     }
 }
 

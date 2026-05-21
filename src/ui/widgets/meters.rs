@@ -13,14 +13,44 @@ use std::time::Instant;
 
 const BAR_BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const DECAY_PER_FRAME: f32 = 0.10; // ~30dB/sec at 30fps
-const ATTACK: f32 = 1.0;
 const PEAK_HOLD_SECS: f32 = 1.5;
+const BAR_W: usize = 8;
+// "NN L ████████" — 2 digit label + space + L/R + space + bar
+const ENTRY_W: usize = 2 + 1 + 1 + 1 + BAR_W;
+const COL_GAP: usize = 2;
+
+#[derive(Default, Clone, Copy)]
+struct Envelope {
+    smoothed: f32,
+    peak: f32,
+    peak_set_at: Option<Instant>,
+}
+
+impl Envelope {
+    fn step(&mut self, v: f32, now: Instant) {
+        let v = v.clamp(0.0, 1.0);
+        // ATTACK=1.0 means rises instantly to the new sample, then decays linearly.
+        let s = if v >= self.smoothed {
+            v
+        } else {
+            (self.smoothed - DECAY_PER_FRAME).max(v)
+        };
+        self.smoothed = s;
+        if s >= self.peak {
+            self.peak = s;
+            self.peak_set_at = Some(now);
+        } else if let Some(t) = self.peak_set_at {
+            if now.duration_since(t).as_secs_f32() > PEAK_HOLD_SECS {
+                self.peak = (self.peak - 0.02).max(s);
+            }
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct MeterState {
-    smoothed: Vec<f32>,
-    peak: Vec<f32>,
-    peak_set_at: Vec<Instant>,
+    left: Vec<Envelope>,
+    right: Vec<Envelope>,
 }
 
 impl MeterState {
@@ -30,27 +60,15 @@ impl MeterState {
 
     pub fn step(&mut self, state: &SharedState) {
         let n = state.num_channels.load(Ordering::Relaxed).max(0) as usize;
-        if self.smoothed.len() != n {
-            self.smoothed.resize(n, 0.0);
-            self.peak.resize(n, 0.0);
-            self.peak_set_at.resize(n, Instant::now());
+        if self.left.len() != n {
+            self.left.resize(n, Envelope::default());
+            self.right.resize(n, Envelope::default());
         }
         let now = Instant::now();
         for ch in 0..n {
             let (l, r) = state.vu(ch);
-            let v = (l + r).clamp(0.0, 1.0);
-            let s = if v >= self.smoothed[ch] {
-                self.smoothed[ch] + (v - self.smoothed[ch]) * ATTACK
-            } else {
-                (self.smoothed[ch] - DECAY_PER_FRAME).max(v)
-            };
-            self.smoothed[ch] = s;
-            if s >= self.peak[ch] {
-                self.peak[ch] = s;
-                self.peak_set_at[ch] = now;
-            } else if now.duration_since(self.peak_set_at[ch]).as_secs_f32() > PEAK_HOLD_SECS {
-                self.peak[ch] = (self.peak[ch] - 0.02).max(s);
-            }
+            self.left[ch].step(l, now);
+            self.right[ch].step(r, now);
         }
     }
 }
@@ -79,30 +97,44 @@ pub fn render(
         return;
     }
 
-    // Lay channels into N columns to fit the height. Each entry is one row,
-    // formatted "NN ▁▂▃▄▅▆▇█". Total chars per entry depend on bar width.
-    let bar_w: usize = 8;
-    let entry_w: usize = 3 /* label */ + 1 /* space */ + bar_w + 1 /* peak */;
-    let cols = ((inner.width as usize) / (entry_w + 2)).max(1);
-    let per_col = n.div_ceil(cols);
-    let visible_per_col = (inner.height as usize).max(1);
-    let per_col_actual = per_col.min(visible_per_col);
+    // Two rows per channel (L stacked over R). Lay channels into columns so
+    // a full L+R pair never gets split across the column boundary.
+    let cols = ((inner.width as usize) / (ENTRY_W + COL_GAP)).max(1);
+    let channels_per_col = n.div_ceil(cols);
+    // Round visible row count down to even so we never show a lone L without R.
+    let visible_rows = ((inner.height as usize) / 2) * 2;
+    let actual_rows = (channels_per_col * 2).min(visible_rows);
+    let visible_channels_per_col = actual_rows / 2;
+    if visible_channels_per_col == 0 {
+        return;
+    }
 
-    let mut lines: Vec<Line> = Vec::with_capacity(per_col_actual);
-    for row in 0..per_col_actual {
-        let mut spans: Vec<Span> = Vec::with_capacity(cols * 8);
+    let mut lines: Vec<Line> = Vec::with_capacity(actual_rows);
+    for row in 0..actual_rows {
+        let local_ch = row / 2;
+        let is_left = row % 2 == 0;
+        let mut spans: Vec<Span> = Vec::with_capacity(cols * 6);
         for col in 0..cols {
-            let ch = col * per_col_actual + row;
+            let ch = col * visible_channels_per_col + local_ch;
             if ch >= n {
-                spans.push(Span::raw(" ".repeat(entry_w + 2)));
+                spans.push(Span::raw(" ".repeat(ENTRY_W + COL_GAP)));
                 continue;
             }
-            let level = meter_state.smoothed.get(ch).copied().unwrap_or(0.0);
-            let peak = meter_state.peak.get(ch).copied().unwrap_or(0.0);
-            spans.push(Span::styled(format!("{:>2} ", ch + 1), theme.dim_style()));
-            spans.extend(bar_spans(level, peak, bar_w, theme));
+            let env = if is_left {
+                meter_state.left.get(ch).copied()
+            } else {
+                meter_state.right.get(ch).copied()
+            }
+            .unwrap_or_default();
+            let label = if is_left {
+                format!("{:>2} L ", ch + 1)
+            } else {
+                "   R ".to_string()
+            };
+            spans.push(Span::styled(label, theme.dim_style()));
+            spans.extend(bar_spans(env.smoothed, env.peak, BAR_W, theme));
             if col + 1 < cols {
-                spans.push(Span::raw("  "));
+                spans.push(Span::raw(" ".repeat(COL_GAP)));
             }
         }
         lines.push(Line::from(spans));

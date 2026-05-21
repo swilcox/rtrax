@@ -13,6 +13,7 @@ use crate::state::SharedState;
 use crate::ui::fft::Spectrum;
 use crate::ui::theme::Theme;
 use crate::ui::widgets::browser::Browser;
+use crate::ui::widgets::master::MasterMeterState;
 use crate::ui::widgets::meters::MeterState;
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyEventKind};
@@ -80,6 +81,7 @@ pub struct App {
     fft_rx: Consumer<f32>,
     spectrum: Spectrum,
     meter_state: MeterState,
+    master_state: MasterMeterState,
     browser: Browser,
     theme: Theme,
     theme_choice: ThemeChoice,
@@ -125,6 +127,7 @@ impl App {
             fft_rx,
             spectrum,
             meter_state: MeterState::new(),
+            master_state: MasterMeterState::new(),
             browser: Browser::new(browse_root),
             theme,
             theme_choice: config.theme,
@@ -145,6 +148,7 @@ impl App {
         while !self.should_quit {
             self.spectrum.step(&mut self.fft_rx);
             self.meter_state.step(&self.state);
+            self.master_state.step(&self.state);
             self.audio.drain_drops();
 
             // Auto-advance if the song ended.
@@ -310,10 +314,6 @@ impl App {
 
             widgets::header::render(f, rows[0], &self.state, &self.theme);
 
-            // Resize bands to roughly match the spectrum row's width.
-            let band_count = (rows[2].width as usize).clamp(8, 96);
-            self.spectrum.resize_bands(band_count);
-
             let main = if self.focus == Focus::Browser {
                 Layout::default()
                     .direction(Direction::Horizontal)
@@ -353,7 +353,16 @@ impl App {
                 false,
             );
 
-            widgets::spectrum::render(f, rows[2], &self.spectrum, &self.theme);
+            // Spectrum on the left, master L/R meter on the right.
+            let bottom = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(16), Constraint::Length(30)])
+                .split(rows[2]);
+            // Resize bands to roughly match the spectrum *sub-area* width now.
+            let band_count = (bottom[0].width as usize).clamp(8, 96);
+            self.spectrum.resize_bands(band_count);
+            widgets::spectrum::render(f, bottom[0], &self.spectrum, &self.theme);
+            widgets::master::render(f, bottom[1], &self.master_state, &self.theme);
 
             // Status hint
             let hint = "[space] play  [n] next  [/] browse  [?] help  [q] quit";

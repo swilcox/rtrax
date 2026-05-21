@@ -217,6 +217,7 @@ impl CallbackState {
             output[i * self.output_channels + 1] = stereo[i * 2 + 1];
         }
 
+        self.publish_master_peak(stereo, copy_frames);
         self.push_to_fft(stereo, copy_frames);
         self.publish_state(send_module.module_mut());
         self.maybe_snapshot_pattern(send_module.module_mut());
@@ -271,6 +272,7 @@ impl CallbackState {
                 for slot in self.state.vu_bits.iter() {
                     slot.store(0u32, Ordering::Relaxed);
                 }
+                self.state.set_master_peak(0.0, 0.0);
             }
             Command::SeekRelative(delta_secs) => {
                 if let Some(send_module) = self.module.as_mut() {
@@ -287,6 +289,24 @@ impl CallbackState {
                 self.state.master_gain_millibel.store(mb, Ordering::Relaxed);
             }
         }
+    }
+
+    fn publish_master_peak(&self, stereo: &[f32], frames: usize) {
+        // Single linear pass over the buffer for the post-mix peak envelope per
+        // side. No alloc, no branches per sample beyond a max.
+        let mut peak_l = 0.0f32;
+        let mut peak_r = 0.0f32;
+        for i in 0..frames {
+            let l = stereo[i * 2].abs();
+            let r = stereo[i * 2 + 1].abs();
+            if l > peak_l {
+                peak_l = l;
+            }
+            if r > peak_r {
+                peak_r = r;
+            }
+        }
+        self.state.set_master_peak(peak_l.min(1.0), peak_r.min(1.0));
     }
 
     fn push_to_fft(&mut self, stereo: &[f32], frames: usize) {
