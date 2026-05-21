@@ -163,8 +163,9 @@ plays/renders/feels right.
 ### Phase 8 — Polish
 - Theme: low-saturation green/cyan palette with magenta accents. Detect
   16-color terminals via crossterm and pick a fallback palette.
-- Config file at `$XDG_CONFIG_HOME/rtrax/config.toml`: keybinds, color
-  overrides, default browse path.
+- Config file at `$XDG_CONFIG_HOME/rtrax/config.toml`: keybinds, theme
+  selection, default browse path. Custom theme files live under
+  `$XDG_CONFIG_HOME/rtrax/themes/*.toml`.
 - Graceful terminal restore on panic (`std::panic::set_hook` + the Drop guard).
 - README with build instructions, screenshots, supported formats.
 

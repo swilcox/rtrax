@@ -67,6 +67,41 @@ buffer on modest hardware.
 
 Override in `$XDG_CONFIG_HOME/rtrax/config.toml`.
 
+## Themes
+
+Select a built-in or custom theme in `$XDG_CONFIG_HOME/rtrax/config.toml`:
+
+```toml
+theme = "default"
+```
+
+Built-ins are `default`, `high-contrast`, and `sixteen`. Custom themes live in
+`$XDG_CONFIG_HOME/rtrax/themes/<name>.toml` and are selected by file stem:
+
+```toml
+theme = "amber"
+```
+
+```toml
+# $XDG_CONFIG_HOME/rtrax/themes/amber.toml
+extends = "default"
+
+accent = "#ffb454"
+note = "#ffe6a3"
+instrument = "light-cyan"
+volume = "yellow"
+effect = "#ff7a90"
+current_row_bg = "#302414"
+```
+
+Theme files may override any subset of these color keys: `bg`, `fg`, `fg_dim`,
+`border`, `border_focus`, `accent`, `note`, `instrument`, `volume`, `effect`,
+`meter_low`, `meter_mid`, `meter_high`, and `current_row_bg`. Values can be
+`#rrggbb`, `reset`, or ratatui ANSI color names such as `cyan`, `dark-gray`,
+and `light-magenta`. Pressing `t` cycles built-ins plus any `.toml` files found
+in the themes directory. See [docs/themes.md](docs/themes.md) for the full
+theme reference.
+
 ## Architecture
 
 See `PLAN.md`. In one paragraph: the audio thread owns the openmpt module and

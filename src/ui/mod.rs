@@ -7,7 +7,7 @@ pub mod widgets;
 
 use crate::audio::command::Command;
 use crate::audio::AudioHandle;
-use crate::config::{Config, ThemeChoice};
+use crate::config::{BuiltInTheme, Config, ThemeChoice};
 use crate::input::{match_key, Action};
 use crate::state::SharedState;
 use crate::ui::fft::Spectrum;
@@ -85,6 +85,7 @@ pub struct App {
     browser: Browser,
     theme: Theme,
     theme_choice: ThemeChoice,
+    theme_choices: Vec<ThemeChoice>,
     config: Config,
     focus: Focus,
     show_help: bool,
@@ -113,11 +114,11 @@ impl App {
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_else(|| PathBuf::from("."));
 
-        let theme = match config.theme {
-            ThemeChoice::Default => Theme::default_truecolor(),
-            ThemeChoice::HighContrast => Theme::high_contrast(),
-            ThemeChoice::Sixteen => Theme::sixteen(),
-        };
+        let mut theme_choices = Theme::available_choices();
+        if !theme_choices.contains(&config.theme) {
+            theme_choices.push(config.theme.clone());
+        }
+        let theme = resolve_theme(&config.theme);
 
         Ok(Self {
             state,
@@ -128,7 +129,8 @@ impl App {
             master_state: MasterMeterState::new(),
             browser: Browser::new(browse_root),
             theme,
-            theme_choice: config.theme,
+            theme_choice: config.theme.clone(),
+            theme_choices,
             config,
             focus: Focus::Pattern,
             show_help: false,
@@ -288,16 +290,17 @@ impl App {
     }
 
     fn cycle_theme(&mut self) {
-        self.theme_choice = match self.theme_choice {
-            ThemeChoice::Default => ThemeChoice::HighContrast,
-            ThemeChoice::HighContrast => ThemeChoice::Sixteen,
-            ThemeChoice::Sixteen => ThemeChoice::Default,
-        };
-        self.theme = match self.theme_choice {
-            ThemeChoice::Default => Theme::default_truecolor(),
-            ThemeChoice::HighContrast => Theme::high_contrast(),
-            ThemeChoice::Sixteen => Theme::sixteen(),
-        };
+        if self.theme_choices.is_empty() {
+            return;
+        }
+        let current = self
+            .theme_choices
+            .iter()
+            .position(|choice| choice == &self.theme_choice)
+            .unwrap_or(0);
+        let next = (current + 1) % self.theme_choices.len();
+        self.theme_choice = self.theme_choices[next].clone();
+        self.theme = resolve_theme(&self.theme_choice);
     }
 
     fn draw(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
@@ -385,5 +388,19 @@ impl App {
             }
         })?;
         Ok(())
+    }
+}
+
+fn resolve_theme(choice: &ThemeChoice) -> Theme {
+    match Theme::for_choice(choice) {
+        Ok(theme) => theme,
+        Err(err) => {
+            tracing::warn!(
+                ?err,
+                theme = choice.name(),
+                "failed to load theme, using default"
+            );
+            Theme::built_in(BuiltInTheme::Default)
+        }
     }
 }

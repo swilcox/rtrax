@@ -1,13 +1,14 @@
 //! Configuration: keybinds, theme selection, default browse path.
 //!
-//! Loaded from `$XDG_CONFIG_HOME/rtrax/config.toml` if present, otherwise
-//! falls back to compiled defaults.
+//! Loaded from `$XDG_CONFIG_HOME/rtrax/config.toml` or
+//! `~/.config/rtrax/config.toml` if present, otherwise falls back to compiled
+//! defaults.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub theme: ThemeChoice,
@@ -15,21 +16,67 @@ pub struct Config {
     pub keymap: KeyMap,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            theme: ThemeChoice::Default,
-            default_browse_path: None,
-            keymap: KeyMap::default(),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltInTheme {
+    Default,
+    HighContrast,
+    Sixteen,
+}
+
+impl BuiltInTheme {
+    pub fn config_name(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::HighContrast => "high-contrast",
+            Self::Sixteen => "sixteen",
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ThemeChoice {
-    Default,
-    HighContrast,
-    Sixteen,
+    BuiltIn(BuiltInTheme),
+    Custom(String),
+}
+
+impl Default for ThemeChoice {
+    fn default() -> Self {
+        Self::BuiltIn(BuiltInTheme::Default)
+    }
+}
+
+impl ThemeChoice {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::BuiltIn(theme) => theme.config_name(),
+            Self::Custom(name) => name,
+        }
+    }
+}
+
+impl Serialize for ThemeChoice {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for ThemeChoice {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        let normalized = raw.trim().to_ascii_lowercase().replace(['_', ' '], "-");
+        Ok(match normalized.as_str() {
+            "default" => Self::BuiltIn(BuiltInTheme::Default),
+            "highcontrast" | "high-contrast" => Self::BuiltIn(BuiltInTheme::HighContrast),
+            "sixteen" | "16" => Self::BuiltIn(BuiltInTheme::Sixteen),
+            _ => Self::Custom(raw),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +121,19 @@ impl Default for KeyMap {
 }
 
 impl Config {
+    pub fn config_dir() -> Option<PathBuf> {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
+            .or_else(dirs::config_dir)
+            .map(|base| base.join("rtrax"))
+    }
+
+    pub fn theme_dir() -> Option<PathBuf> {
+        Self::config_dir().map(|dir| dir.join("themes"))
+    }
+
     pub fn load() -> Self {
         match Self::try_load() {
             Ok(Some(cfg)) => cfg,
@@ -86,10 +146,10 @@ impl Config {
     }
 
     fn try_load() -> Result<Option<Self>> {
-        let Some(base) = dirs::config_dir() else {
+        let Some(base) = Self::config_dir() else {
             return Ok(None);
         };
-        let path = base.join("rtrax").join("config.toml");
+        let path = base.join("config.toml");
         if !path.exists() {
             return Ok(None);
         }
