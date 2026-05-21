@@ -25,8 +25,8 @@ fn main() {
 
     // Last-ditch fallbacks for common install locations.
     for path in [
-        "/opt/homebrew/lib",       // macOS / Apple Silicon brew
-        "/usr/local/lib",          // macOS / Intel brew, FreeBSD
+        "/opt/homebrew/lib", // macOS / Apple Silicon brew
+        "/usr/local/lib",    // macOS / Intel brew, FreeBSD
         "/usr/lib/x86_64-linux-gnu",
         "/usr/lib/aarch64-linux-gnu",
     ] {
@@ -51,5 +51,9 @@ fn pkg_config_libs() -> Option<Vec<String>> {
         .split_whitespace()
         .filter_map(|tok| tok.strip_prefix("-L").map(|s| s.to_string()))
         .collect();
-    if dirs.is_empty() { None } else { Some(dirs) }
+    if dirs.is_empty() {
+        None
+    } else {
+        Some(dirs)
+    }
 }

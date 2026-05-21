@@ -21,7 +21,8 @@ fn main() -> Result<()> {
 
     let loaded = audio::load_module(std::path::Path::new(&path))?;
     let title = loaded.title.clone();
-    handle.send(Command::Load(loaded));
+    audio::publish_loaded_metadata(&state, &loaded);
+    handle.send(Command::Load(loaded.module));
 
     println!("playing: {title}");
 

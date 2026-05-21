@@ -69,6 +69,10 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
 fn matches_binding(binding: &str, ev: &KeyEvent) -> bool {
     // "ctrl+c", "shift+tab", "space", "right", "q", etc.
     let s = binding.trim().to_lowercase();
+    if s == "shift+tab" {
+        return ev.code == KeyCode::BackTab
+            || (ev.code == KeyCode::Tab && ev.modifiers == KeyModifiers::SHIFT);
+    }
     let mut mods = KeyModifiers::empty();
     let mut key_part = s.as_str();
 
@@ -112,5 +116,76 @@ fn matches_binding(binding: &str, ev: &KeyEvent) -> bool {
         (KeyCode::PageUp, "pageup") => true,
         (KeyCode::PageDown, "pagedown") => true,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent::new(code, modifiers)
+    }
+
+    #[test]
+    fn matches_default_bindings() {
+        let keymap = KeyMap::default();
+
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('q'), KeyModifiers::empty())),
+            Some(Action::Quit)
+        );
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char(' '), KeyModifiers::empty())),
+            Some(Action::PlayPause)
+        );
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Right, KeyModifiers::empty())),
+            Some(Action::SeekForward)
+        );
+    }
+
+    #[test]
+    fn plain_character_bindings_ignore_shift() {
+        let keymap = KeyMap::default();
+
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('Q'), KeyModifiers::SHIFT)),
+            Some(Action::Quit)
+        );
+    }
+
+    #[test]
+    fn shift_tab_does_not_match_plain_tab() {
+        let keymap = KeyMap {
+            cycle_focus: vec!["shift+tab".to_string()],
+            ..KeyMap::default()
+        };
+
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Tab, KeyModifiers::empty())),
+            None
+        );
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::BackTab, KeyModifiers::SHIFT)),
+            Some(Action::CycleFocus)
+        );
+    }
+
+    #[test]
+    fn navigation_keys_are_always_available() {
+        let keymap = KeyMap {
+            seek_forward: Vec::new(),
+            ..KeyMap::default()
+        };
+
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Up, KeyModifiers::empty())),
+            Some(Action::Up)
+        );
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Right, KeyModifiers::empty())),
+            None
+        );
     }
 }

@@ -1,7 +1,6 @@
 //! Pattern view. Renders the rows surrounding the current row with the
 //! current row centered, dim cells for empty data, and per-token coloring.
 
-use crate::state::pattern::PatternWindow;
 use crate::state::SharedState;
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
@@ -9,6 +8,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use std::sync::atomic::Ordering;
 
 pub fn render(f: &mut Frame, area: Rect, state: &SharedState, theme: &Theme, focused: bool) {
     let block = Block::default()
@@ -22,10 +22,13 @@ pub fn render(f: &mut Frame, area: Rect, state: &SharedState, theme: &Theme, foc
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let window = match state.pattern_window.try_lock() {
-        Ok(g) => g.clone(),
-        Err(_) => PatternWindow::default(),
-    };
+    let pattern = state.current_pattern.load(Ordering::Relaxed);
+    let row = state.current_row.load(Ordering::Relaxed);
+    let window = state
+        .pattern_cache
+        .lock()
+        .map(|cache| cache.window(pattern, row))
+        .unwrap_or_default();
 
     if window.rows.is_empty() || window.channel_count == 0 {
         let msg = Paragraph::new(Line::from(Span::styled(

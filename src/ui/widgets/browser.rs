@@ -203,3 +203,96 @@ pub fn render(f: &mut Frame, area: Rect, browser: &mut Browser, theme: &Theme, f
 
     f.render_stateful_widget(list, area, &mut browser.state);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("rtrax-{name}-{stamp}"));
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn entry(label: &str, is_dir: bool) -> Entry {
+        Entry {
+            path: PathBuf::from(label),
+            is_dir,
+            label: label.to_string(),
+        }
+    }
+
+    #[test]
+    fn module_extension_matching_is_case_insensitive() {
+        assert!(is_module(Path::new("song.XM")));
+        assert!(is_module(Path::new("song.mod")));
+        assert!(!is_module(Path::new("song.txt")));
+        assert!(!is_module(Path::new("song")));
+    }
+
+    #[test]
+    fn refresh_lists_dirs_first_then_modules() {
+        let root = temp_root("browser-refresh");
+        fs::create_dir(root.join("z-dir")).unwrap();
+        fs::create_dir(root.join("a-dir")).unwrap();
+        fs::create_dir(root.join(".hidden")).unwrap();
+        fs::write(root.join("b.xm"), []).unwrap();
+        fs::write(root.join("A.MOD"), []).unwrap();
+        fs::write(root.join("notes.txt"), []).unwrap();
+
+        let browser = Browser::new(root.clone());
+        let labels: Vec<&str> = browser
+            .entries
+            .iter()
+            .map(|entry| entry.label.as_str())
+            .collect();
+
+        assert_eq!(labels, ["..", "a-dir/", "z-dir/", "A.MOD", "b.xm"]);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn selection_wraps_in_both_directions() {
+        let mut browser = Browser {
+            root: PathBuf::from("."),
+            entries: vec![entry("a.xm", false), entry("b.xm", false)],
+            state: ListState::default(),
+        };
+        browser.state.select(Some(0));
+
+        browser.select_delta(-1);
+        assert_eq!(browser.state.selected(), Some(1));
+
+        browser.select_delta(1);
+        assert_eq!(browser.state.selected(), Some(0));
+    }
+
+    #[test]
+    fn next_and_previous_skip_directories() {
+        let mut browser = Browser {
+            root: PathBuf::from("."),
+            entries: vec![
+                entry("dir", true),
+                entry("a.xm", false),
+                entry("b.xm", false),
+            ],
+            state: ListState::default(),
+        };
+
+        assert_eq!(
+            browser.next_module(Some(Path::new("a.xm"))),
+            Some(PathBuf::from("b.xm"))
+        );
+        assert_eq!(
+            browser.prev_module(Some(Path::new("a.xm"))),
+            Some(PathBuf::from("b.xm"))
+        );
+    }
+}

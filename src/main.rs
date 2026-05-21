@@ -20,7 +20,10 @@ fn main() -> Result<()> {
 
     if let Some(path) = initial_path.as_deref() {
         match audio::load_module(path) {
-            Ok(loaded) => audio.send(Command::Load(loaded)),
+            Ok(loaded) => {
+                audio::publish_loaded_metadata(&state, &loaded);
+                audio.send(Command::Load(loaded.module));
+            }
             Err(err) => tracing::warn!(?err, "failed to load initial module"),
         }
     }
