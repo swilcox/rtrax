@@ -5,7 +5,7 @@
 //! - Pushes a downsampled mono copy into the rtrb producer for the FFT.
 //! - Reads per-channel VU from libopenmpt and stores into shared atomics.
 //! - Updates order/row/BPM/speed atomics.
-//! - Snapshots a window of pattern rows via `try_lock`.
+//! - Updates sticky per-channel instrument state for the info panel.
 //!
 //! It receives commands (Load/Play/Pause/Stop/Seek/Volume) over a
 //! `crossbeam_channel::Receiver` polled non-blockingly at the top of each
@@ -26,7 +26,7 @@ use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::state::pattern::{try_publish, PatternRow, PatternWindow, WINDOW_RADIUS, WINDOW_ROWS};
+use crate::state::pattern::{PatternCache, PatternData, PatternRow};
 use crate::state::{SharedState, MAX_CHANNELS};
 
 /// Number of mono samples pushed into the FFT ring per second (after
@@ -134,9 +134,8 @@ struct CallbackState {
     module: Option<SendModule>,
     /// Reusable buffer; capacity is sized up to the largest cpal slice seen.
     decode_buf: Vec<f32>,
-    /// Phase accumulator for the audio→FFT downsampler. Integer ratio:
-    /// `sample_rate / FFT_RING_RATE_HZ`.
-    downsample_phase: u32,
+    /// Phase accumulator for the audio->FFT downsampler.
+    downsample_accum: u32,
     last_snapshot_row: i32,
     last_snapshot_pattern: i32,
 }
@@ -159,7 +158,7 @@ impl CallbackState {
             output_channels,
             module: None,
             decode_buf: Vec::with_capacity(8192),
-            downsample_phase: 0,
+            downsample_accum: 0,
             last_snapshot_row: -1,
             last_snapshot_pattern: -1,
         }
@@ -221,7 +220,7 @@ impl CallbackState {
         self.publish_master_peak(stereo, copy_frames);
         self.push_to_fft(stereo, copy_frames);
         self.publish_state(send_module.module_mut());
-        self.maybe_snapshot_pattern(send_module.module_mut());
+        self.publish_last_instruments(send_module.module_mut());
 
         self.module = Some(send_module);
     }
@@ -229,48 +228,12 @@ impl CallbackState {
     fn apply_command(&mut self, cmd: Command) {
         match cmd {
             Command::Load(loaded) => {
-                let LoadedModule {
-                    module,
-                    path,
-                    title,
-                    format_label,
-                    sample_names,
-                    instrument_names,
-                    song_message,
-                    artist,
-                    tracker,
-                } = loaded;
-
-                let old = self.module.replace(module);
+                let old = self.module.replace(loaded);
                 self.state.playing.store(true, Ordering::Relaxed);
                 self.state.stopped.store(false, Ordering::Relaxed);
                 self.state.eof.store(false, Ordering::Relaxed);
                 if let Some(old_mod) = old {
                     let _ = self.drop_tx.send(old_mod);
-                }
-                if let Ok(mut t) = self.state.title.try_lock() {
-                    *t = title;
-                }
-                if let Ok(mut f) = self.state.format_label.try_lock() {
-                    *f = format_label;
-                }
-                if let Ok(mut p) = self.state.current_path.try_lock() {
-                    *p = path;
-                }
-                if let Ok(mut v) = self.state.sample_names.try_lock() {
-                    *v = sample_names;
-                }
-                if let Ok(mut v) = self.state.instrument_names.try_lock() {
-                    *v = instrument_names;
-                }
-                if let Ok(mut s) = self.state.song_message.try_lock() {
-                    *s = song_message;
-                }
-                if let Ok(mut s) = self.state.artist.try_lock() {
-                    *s = artist;
-                }
-                if let Ok(mut s) = self.state.tracker.try_lock() {
-                    *s = tracker;
                 }
                 self.state.clear_last_instruments();
                 self.last_snapshot_row = -1;
@@ -333,11 +296,8 @@ impl CallbackState {
     }
 
     fn push_to_fft(&mut self, stereo: &[f32], frames: usize) {
-        let ratio = (self.sample_rate / FFT_RING_RATE_HZ).max(1);
         for i in 0..frames {
-            self.downsample_phase += 1;
-            if self.downsample_phase >= ratio {
-                self.downsample_phase = 0;
+            if advance_downsample(&mut self.downsample_accum, self.sample_rate) {
                 let l = stereo[i * 2];
                 let r = stereo[i * 2 + 1];
                 let mono = (l + r) * 0.5;
@@ -386,7 +346,7 @@ impl CallbackState {
         self.state.num_orders.store(orders, Ordering::Relaxed);
     }
 
-    fn maybe_snapshot_pattern(&mut self, module: &mut Module) {
+    fn publish_last_instruments(&mut self, module: &mut Module) {
         let pattern = module.get_current_pattern();
         let row = module.get_current_row();
         if pattern == self.last_snapshot_pattern && row == self.last_snapshot_row {
@@ -426,63 +386,26 @@ impl CallbackState {
             }
         }
 
-        let mut rows: Vec<PatternRow> = Vec::with_capacity(WINDOW_ROWS);
-        let start = row - WINDOW_RADIUS as i32;
-        for offset in 0..WINDOW_ROWS as i32 {
-            let r = start + offset;
-            if r < 0 || r >= num_rows {
-                rows.push(PatternRow {
-                    row_index: r,
-                    cells: vec![String::new(); num_channels],
-                    instruments: vec![0u8; num_channels],
-                });
-                continue;
-            }
-            let mut cells: Vec<String> = Vec::with_capacity(num_channels);
-            let mut instruments: Vec<u8> = Vec::with_capacity(num_channels);
-            if let Some(mut row_h) = pat.get_row_by_number(r) {
-                for ch in 0..num_channels as i32 {
-                    if let Some(mut cell) = row_h.get_cell_by_channel(ch) {
-                        cells.push(cell.get_formatted(0, false));
-                        instruments.push(cell.get_data_by_command(ModuleCommandIndex::Instrument));
-                    } else {
-                        cells.push(String::new());
-                        instruments.push(0);
+        if let Some(mut row_h) = pat.get_row_by_number(row) {
+            for ch in 0..num_channels as i32 {
+                if let Some(mut cell) = row_h.get_cell_by_channel(ch) {
+                    let inst = cell.get_data_by_command(ModuleCommandIndex::Instrument);
+                    if inst > 0 {
+                        self.state.set_last_instrument(ch as usize, inst as i32);
                     }
                 }
-            } else {
-                cells.resize(num_channels, String::new());
-                instruments.resize(num_channels, 0);
-            }
-            rows.push(PatternRow {
-                row_index: r,
-                cells,
-                instruments,
-            });
-        }
-
-        let current_index = WINDOW_RADIUS;
-
-        // Sticky per-channel last-seen instrument. We scan the whole window
-        // history (rows up to and including the current one), not just the
-        // current row — if a snapshot was skipped or this is the first one
-        // for this pattern, recent instrument events would otherwise be lost.
-        for row_data in rows.iter().take(current_index + 1) {
-            for (ch, &inst) in row_data.instruments.iter().enumerate() {
-                if inst > 0 {
-                    self.state.set_last_instrument(ch, inst as i32);
-                }
             }
         }
+    }
+}
 
-        try_publish(&self.state.pattern_window, |slot| {
-            *slot = PatternWindow {
-                pattern,
-                rows,
-                current_index,
-                channel_count: num_channels,
-            };
-        });
+fn advance_downsample(accum: &mut u32, sample_rate: u32) -> bool {
+    *accum = (*accum).saturating_add(FFT_RING_RATE_HZ);
+    if *accum >= sample_rate {
+        *accum -= sample_rate;
+        true
+    } else {
+        false
     }
 }
 
@@ -520,6 +443,7 @@ pub fn load_module(path: &Path) -> Result<LoadedModule> {
     for i in 0..num_instruments {
         instrument_names.push(module.get_instrument_name(i));
     }
+    let pattern_cache = Arc::new(build_pattern_cache(&mut module));
 
     Ok(LoadedModule {
         module: SendModule::new(module),
@@ -531,5 +455,97 @@ pub fn load_module(path: &Path) -> Result<LoadedModule> {
         song_message,
         artist,
         tracker,
+        pattern_cache,
     })
+}
+
+pub fn publish_loaded_metadata(state: &SharedState, loaded: &LoadedModule) {
+    if let Ok(mut t) = state.title.lock() {
+        *t = loaded.title.clone();
+    }
+    if let Ok(mut f) = state.format_label.lock() {
+        *f = loaded.format_label.clone();
+    }
+    if let Ok(mut p) = state.current_path.lock() {
+        *p = loaded.path.clone();
+    }
+    if let Ok(mut v) = state.sample_names.lock() {
+        *v = loaded.sample_names.clone();
+    }
+    if let Ok(mut v) = state.instrument_names.lock() {
+        *v = loaded.instrument_names.clone();
+    }
+    if let Ok(mut s) = state.song_message.lock() {
+        *s = loaded.song_message.clone();
+    }
+    if let Ok(mut s) = state.artist.lock() {
+        *s = loaded.artist.clone();
+    }
+    if let Ok(mut s) = state.tracker.lock() {
+        *s = loaded.tracker.clone();
+    }
+    state.set_pattern_cache(loaded.pattern_cache.clone());
+    state.clear_last_instruments();
+}
+
+fn build_pattern_cache(module: &mut Module) -> PatternCache {
+    let num_patterns = module.get_num_patterns().max(0);
+    let num_channels = module.get_num_channels().max(0) as usize;
+    let mut patterns = Vec::with_capacity(num_patterns as usize);
+
+    for pattern in 0..num_patterns {
+        let Some(mut pat) = module.get_pattern_by_number(pattern) else {
+            patterns.push(PatternData::default());
+            continue;
+        };
+        let num_rows = pat.get_num_rows().max(0);
+        let mut rows = Vec::with_capacity(num_rows as usize);
+        for row_index in 0..num_rows {
+            let mut cells = Vec::with_capacity(num_channels);
+            let mut instruments = Vec::with_capacity(num_channels);
+            if let Some(mut row_h) = pat.get_row_by_number(row_index) {
+                for ch in 0..num_channels as i32 {
+                    if let Some(mut cell) = row_h.get_cell_by_channel(ch) {
+                        cells.push(cell.get_formatted(0, false));
+                        instruments.push(cell.get_data_by_command(ModuleCommandIndex::Instrument));
+                    } else {
+                        cells.push(String::new());
+                        instruments.push(0);
+                    }
+                }
+            } else {
+                cells.resize(num_channels, String::new());
+                instruments.resize(num_channels, 0);
+            }
+            rows.push(PatternRow {
+                row_index,
+                cells,
+                instruments,
+            });
+        }
+        patterns.push(PatternData {
+            rows,
+            channel_count: num_channels,
+        });
+    }
+
+    PatternCache { patterns }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn downsampled_frames(sample_rate: u32, input_frames: u32) -> u32 {
+        let mut accum = 0;
+        (0..input_frames)
+            .filter(|_| advance_downsample(&mut accum, sample_rate))
+            .count() as u32
+    }
+
+    #[test]
+    fn downsampler_targets_fft_ring_rate_for_common_sample_rates() {
+        assert_eq!(downsampled_frames(44_100, 44_100), FFT_RING_RATE_HZ);
+        assert_eq!(downsampled_frames(48_000, 48_000), FFT_RING_RATE_HZ);
+    }
 }

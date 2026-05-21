@@ -104,10 +104,7 @@ impl App {
         config: Config,
         initial_path: Option<PathBuf>,
     ) -> Result<Self> {
-        let sample_rate = state.sample_rate.load(Ordering::Relaxed) as f32;
-        let spectrum_rate =
-            (sample_rate / (sample_rate / crate::audio::FFT_RING_RATE_HZ as f32)).max(8000.0); // post-downsample, effectively FFT_RING_RATE_HZ
-        let spectrum = Spectrum::new(spectrum_rate.min(crate::audio::FFT_RING_RATE_HZ as f32), 48);
+        let spectrum = Spectrum::new(crate::audio::FFT_RING_RATE_HZ as f32, 48);
 
         let browse_root = initial_path
             .as_ref()
@@ -281,7 +278,8 @@ impl App {
         match crate::audio::load_module(&path) {
             Ok(loaded) => {
                 self.current_path = Some(path);
-                self.audio.send(Command::Load(loaded));
+                crate::audio::publish_loaded_metadata(&self.state, &loaded);
+                self.audio.send(Command::Load(loaded.module));
             }
             Err(err) => {
                 tracing::error!(?err, "failed to load module");

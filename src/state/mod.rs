@@ -7,9 +7,9 @@
 
 pub mod pattern;
 
-use pattern::PatternWindow;
+use pattern::PatternCache;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Cap on how many per-channel meter slots we publish to the UI. libopenmpt
 /// modules can have many channels (some MPTM/IT > 64); we lay them out in
@@ -72,9 +72,9 @@ pub struct SharedState {
     /// Currently-loaded file path. UI uses this for the header + browser.
     pub current_path: Mutex<Option<std::path::PathBuf>>,
 
-    /// Snapshot of pattern rows surrounding the current row, refreshed by the
-    /// audio thread once per buffer.
-    pub pattern_window: Mutex<PatternWindow>,
+    /// Preformatted pattern data captured at load time. The audio callback only
+    /// publishes current pattern/row; the UI slices this cache for display.
+    pub pattern_cache: Mutex<Arc<PatternCache>>,
 
     /// Generation counter: incremented every time the audio thread updates
     /// `current_row`. UI uses this to decide whether to redraw the pattern view.
@@ -117,7 +117,7 @@ impl SharedState {
             title: Mutex::new(String::new()),
             format_label: Mutex::new(String::new()),
             current_path: Mutex::new(None),
-            pattern_window: Mutex::new(PatternWindow::default()),
+            pattern_cache: Mutex::new(Arc::new(PatternCache::default())),
             row_generation: AtomicUsize::new(0),
         }
     }
@@ -187,6 +187,12 @@ impl SharedState {
             slot.store(0, Ordering::Relaxed);
         }
     }
+
+    pub fn set_pattern_cache(&self, cache: Arc<PatternCache>) {
+        if let Ok(mut slot) = self.pattern_cache.lock() {
+            *slot = cache;
+        }
+    }
 }
 
 /// Two-u32 atomic store for u64. Each half stored Relaxed; readers tolerate the
@@ -214,5 +220,58 @@ impl AtomicU64Pair {
     pub fn store(&self, v: u64) {
         self.lo.store(v as u32, Ordering::Relaxed);
         self.hi.store((v >> 32) as u32, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::pattern::PatternCache;
+
+    #[test]
+    fn vu_and_master_peak_round_trip() {
+        let state = SharedState::new();
+
+        state.set_vu(0, 0.25, 0.75);
+        state.set_master_peak(0.5, 1.0);
+
+        assert_eq!(state.vu(0), (0.25, 0.75));
+        assert_eq!(state.vu(MAX_CHANNELS), (0.0, 0.0));
+        assert_eq!(state.master_peak(), (0.5, 1.0));
+    }
+
+    #[test]
+    fn seconds_round_trip() {
+        let state = SharedState::new();
+
+        state.set_position_secs(12.5);
+        state.set_duration_secs(123.0);
+
+        assert_eq!(state.position_secs(), 12.5);
+        assert_eq!(state.duration_secs(), 123.0);
+    }
+
+    #[test]
+    fn last_instruments_can_be_cleared() {
+        let state = SharedState::new();
+
+        state.set_last_instrument(0, 3);
+        state.set_last_instrument(MAX_CHANNELS, 9);
+        assert_eq!(state.last_instrument(0), 3);
+        assert_eq!(state.last_instrument(MAX_CHANNELS), 0);
+
+        state.clear_last_instruments();
+        assert_eq!(state.last_instrument(0), 0);
+    }
+
+    #[test]
+    fn pattern_cache_is_replaceable() {
+        let state = SharedState::new();
+        let cache = Arc::new(PatternCache::default());
+
+        state.set_pattern_cache(cache.clone());
+
+        let stored = state.pattern_cache.lock().unwrap().clone();
+        assert!(Arc::ptr_eq(&stored, &cache));
     }
 }

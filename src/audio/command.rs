@@ -1,7 +1,9 @@
 //! Commands sent from the UI thread to the audio thread.
 
+use crate::state::pattern::PatternCache;
 use openmpt::module::Module;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// `openmpt::Module` wraps a raw C pointer and isn't Send. libopenmpt itself
 /// is fine to use from any thread as long as only one thread touches a given
@@ -37,12 +39,13 @@ pub struct LoadedModule {
     pub song_message: String,
     pub artist: String,
     pub tracker: String,
+    pub pattern_cache: Arc<PatternCache>,
 }
 
 pub enum Command {
-    /// Replace the currently-playing module (drops the old one back to the UI
-    /// thread for deallocation).
-    Load(LoadedModule),
+    /// Replace the currently-playing module. Metadata is published by the
+    /// caller before this reaches the audio callback.
+    Load(SendModule),
     Play,
     Pause,
     Stop,
