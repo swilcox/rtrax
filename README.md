@@ -1,5 +1,18 @@
 # rtrax
 
+[![CI](https://github.com/swilcox/rtrax/actions/workflows/ci.yml/badge.svg)](https://github.com/swilcox/rtrax/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/swilcox/rtrax/branch/main/graph/badge.svg)](https://codecov.io/gh/swilcox/rtrax)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Made with Rust](https://img.shields.io/badge/made_with-rust-CE412B?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Edition 2021](https://img.shields.io/badge/edition-2021-blue.svg)](https://doc.rust-lang.org/edition-guide/rust-2021/index.html)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#install)
+[![Type: TUI](https://img.shields.io/badge/type-TUI-9cf.svg)](https://github.com/ratatui-org/ratatui)
+[![Audio: libopenmpt](https://img.shields.io/badge/audio-libopenmpt-purple.svg)](https://lib.openmpt.org/libopenmpt/)
+[![Latest tag](https://img.shields.io/github/v/tag/swilcox/rtrax?sort=semver&label=version)](https://github.com/swilcox/rtrax/tags)
+[![Last commit](https://img.shields.io/github/last-commit/swilcox/rtrax)](https://github.com/swilcox/rtrax/commits/main)
+[![Code size](https://img.shields.io/github/languages/code-size/swilcox/rtrax)](https://github.com/swilcox/rtrax)
+[![Top language](https://img.shields.io/github/languages/top/swilcox/rtrax)](https://github.com/swilcox/rtrax)
+
 A TUI module player for `.mod` / `.xm` / `.it` / `.s3m` / `.mtm` (and anything
 else libopenmpt reads). Per-channel level meters, scrolling pattern view,
 master spectrum analyzer, file browser. macOS + Linux.
@@ -62,6 +75,8 @@ buffer on modest hardware.
 | `Tab`     | Cycle focus                  |
 | `t`       | Cycle theme                  |
 | `i`       | Toggle info panel (samples + metadata) |
+| `w`       | Cycle pattern stack (1 / 2 / 4 lanes)  |
+| `c`       | Toggle compact cells (drops volume + effect) |
 | `?`       | Help overlay                 |
 | `q`       | Quit                         |
 
