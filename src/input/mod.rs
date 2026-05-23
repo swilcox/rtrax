@@ -18,6 +18,8 @@ pub enum Action {
     CycleFocus,
     CycleTheme,
     ToggleInfo,
+    CyclePatternStack,
+    TogglePatternCompact,
     Help,
     Up,
     Down,
@@ -53,6 +55,8 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.cycle_focus, Action::CycleFocus),
         (&keymap.cycle_theme, Action::CycleTheme),
         (&keymap.toggle_info, Action::ToggleInfo),
+        (&keymap.cycle_pattern_stack, Action::CyclePatternStack),
+        (&keymap.toggle_pattern_compact, Action::TogglePatternCompact),
         (&keymap.help, Action::Help),
     ];
 

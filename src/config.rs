@@ -95,6 +95,8 @@ pub struct KeyMap {
     pub cycle_focus: Vec<String>,
     pub cycle_theme: Vec<String>,
     pub toggle_info: Vec<String>,
+    pub cycle_pattern_stack: Vec<String>,
+    pub toggle_pattern_compact: Vec<String>,
     pub help: Vec<String>,
 }
 
@@ -115,6 +117,8 @@ impl Default for KeyMap {
             cycle_focus: vec!["tab".into()],
             cycle_theme: vec!["t".into()],
             toggle_info: vec!["i".into()],
+            cycle_pattern_stack: vec!["w".into()],
+            toggle_pattern_compact: vec!["c".into()],
             help: vec!["?".into()],
         }
     }

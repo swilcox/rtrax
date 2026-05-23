@@ -15,6 +15,7 @@ use crate::ui::theme::Theme;
 use crate::ui::widgets::browser::Browser;
 use crate::ui::widgets::master::MasterMeterState;
 use crate::ui::widgets::meters::MeterState;
+use crate::ui::widgets::pattern::PatternView;
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyEventKind};
 use crossterm::execute;
@@ -90,6 +91,7 @@ pub struct App {
     focus: Focus,
     show_help: bool,
     show_info: bool,
+    pattern_view: PatternView,
     should_quit: bool,
     volume_millibel: i32,
     /// Most recent path we asked the audio thread to play. Drives n/p in the
@@ -135,6 +137,7 @@ impl App {
             focus: Focus::Pattern,
             show_help: false,
             show_info: false,
+            pattern_view: PatternView::default(),
             should_quit: false,
             volume_millibel: 0,
             current_path: initial_path,
@@ -245,6 +248,8 @@ impl App {
                 };
             }
             Action::CycleTheme => self.cycle_theme(),
+            Action::CyclePatternStack => self.pattern_view.cycle_stack(),
+            Action::TogglePatternCompact => self.pattern_view.toggle_compact(),
             Action::Up => {
                 if self.focus == Focus::Browser {
                     self.browser.select_delta(-1);
@@ -347,6 +352,7 @@ impl App {
                 &self.state,
                 &self.theme,
                 self.focus == Focus::Pattern,
+                self.pattern_view,
             );
             if self.show_info {
                 widgets::info::render(f, main[2], &self.state, &self.theme);

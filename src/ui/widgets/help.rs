@@ -36,6 +36,8 @@ pub fn render(f: &mut Frame, area: Rect, theme: &Theme) {
         line("tab", "cycle focus between panes"),
         line("t", "cycle theme"),
         line("i", "toggle info panel (samples / metadata)"),
+        line("w", "cycle pattern stack (1 / 2 / 4 stripes)"),
+        line("c", "toggle compact cells (drops volume + effect)"),
         line("?", "toggle this help"),
         line("q / esc", "quit"),
     ];
