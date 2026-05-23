@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#install)
 [![Type: TUI](https://img.shields.io/badge/type-TUI-9cf.svg)](https://github.com/ratatui-org/ratatui)
 [![Audio: libopenmpt](https://img.shields.io/badge/audio-libopenmpt-purple.svg)](https://lib.openmpt.org/libopenmpt/)
-[![Latest tag](https://img.shields.io/github/v/tag/swilcox/rtrax?sort=semver&label=version)](https://github.com/swilcox/rtrax/tags)
+[![Latest release](https://img.shields.io/github/v/release/swilcox/rtrax?sort=semver&display_name=tag)](https://github.com/swilcox/rtrax/releases/latest)
 [![Last commit](https://img.shields.io/github/last-commit/swilcox/rtrax)](https://github.com/swilcox/rtrax/commits/main)
 [![Code size](https://img.shields.io/github/languages/code-size/swilcox/rtrax)](https://github.com/swilcox/rtrax)
 [![Top language](https://img.shields.io/github/languages/top/swilcox/rtrax)](https://github.com/swilcox/rtrax)
