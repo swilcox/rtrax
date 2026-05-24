@@ -21,6 +21,11 @@ pub enum BuiltInTheme {
     Default,
     HighContrast,
     Sixteen,
+    NeonBlue,
+    NeonGreen,
+    NeonOrange,
+    C64,
+    Mono,
 }
 
 impl BuiltInTheme {
@@ -29,8 +34,25 @@ impl BuiltInTheme {
             Self::Default => "default",
             Self::HighContrast => "high-contrast",
             Self::Sixteen => "sixteen",
+            Self::NeonBlue => "neon-blue",
+            Self::NeonGreen => "neon-green",
+            Self::NeonOrange => "neon-orange",
+            Self::C64 => "c64",
+            Self::Mono => "mono",
         }
     }
+
+    /// Every built-in, in cycle order.
+    pub const ALL: &'static [BuiltInTheme] = &[
+        Self::Default,
+        Self::HighContrast,
+        Self::Sixteen,
+        Self::NeonBlue,
+        Self::NeonGreen,
+        Self::NeonOrange,
+        Self::C64,
+        Self::Mono,
+    ];
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +96,11 @@ impl<'de> Deserialize<'de> for ThemeChoice {
             "default" => Self::BuiltIn(BuiltInTheme::Default),
             "highcontrast" | "high-contrast" => Self::BuiltIn(BuiltInTheme::HighContrast),
             "sixteen" | "16" => Self::BuiltIn(BuiltInTheme::Sixteen),
+            "neon-blue" => Self::BuiltIn(BuiltInTheme::NeonBlue),
+            "neon-green" => Self::BuiltIn(BuiltInTheme::NeonGreen),
+            "neon-orange" => Self::BuiltIn(BuiltInTheme::NeonOrange),
+            "c64" | "commodore-64" | "commodore64" => Self::BuiltIn(BuiltInTheme::C64),
+            "mono" | "monochrome" => Self::BuiltIn(BuiltInTheme::Mono),
             _ => Self::Custom(raw),
         })
     }

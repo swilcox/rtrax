@@ -37,6 +37,11 @@ Built-in themes are:
 - `default`
 - `high-contrast`
 - `sixteen`
+- `neon-blue`
+- `neon-green`
+- `neon-orange`
+- `c64`
+- `mono`
 
 Custom themes are selected by file stem. For example, this file:
 
@@ -154,7 +159,13 @@ Press `t` in rtrax to cycle through:
 1. `default`
 2. `high-contrast`
 3. `sixteen`
-4. Custom `.toml` files found in the themes directory
+4. `neon-blue`
+5. `neon-green`
+6. `neon-orange`
+7. `c64`
+8. `mono`
+9. Custom `.toml` files found in the themes directory (skipping any whose name
+   matches a built-in)
 
 Custom themes are discovered at startup. Restart rtrax after adding or renaming
 a theme file.

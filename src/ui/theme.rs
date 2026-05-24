@@ -4,6 +4,7 @@
 //! current terminal's color capability is detected at startup.
 
 use crate::config::{BuiltInTheme, Config, ThemeChoice};
+use std::collections::HashSet;
 use anyhow::{bail, Context, Result};
 use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
@@ -41,15 +42,23 @@ impl Theme {
             BuiltInTheme::Default => Self::default_truecolor(),
             BuiltInTheme::HighContrast => Self::high_contrast(),
             BuiltInTheme::Sixteen => Self::sixteen(),
+            BuiltInTheme::NeonBlue => Self::neon_blue(),
+            BuiltInTheme::NeonGreen => Self::neon_green(),
+            BuiltInTheme::NeonOrange => Self::neon_orange(),
+            BuiltInTheme::C64 => Self::c64(),
+            BuiltInTheme::Mono => Self::mono(),
         }
     }
 
     pub fn available_choices() -> Vec<ThemeChoice> {
-        let mut choices = vec![
-            ThemeChoice::BuiltIn(BuiltInTheme::Default),
-            ThemeChoice::BuiltIn(BuiltInTheme::HighContrast),
-            ThemeChoice::BuiltIn(BuiltInTheme::Sixteen),
-        ];
+        let mut choices: Vec<ThemeChoice> = BuiltInTheme::ALL
+            .iter()
+            .map(|t| ThemeChoice::BuiltIn(*t))
+            .collect();
+
+        // Built-in names so we can skip custom files that shadow them.
+        let built_in_names: HashSet<&str> =
+            BuiltInTheme::ALL.iter().map(|t| t.config_name()).collect();
 
         let Some(theme_dir) = Config::theme_dir() else {
             return choices;
@@ -69,6 +78,7 @@ impl Theme {
                 }
                 path.file_stem()
                     .and_then(|stem| stem.to_str())
+                    .filter(|stem| !built_in_names.contains(*stem))
                     .map(|stem| ThemeChoice::Custom(stem.to_owned()))
             })
             .collect::<Vec<_>>();
@@ -123,6 +133,101 @@ impl Theme {
             meter_mid: Color::Yellow,
             meter_high: Color::Red,
             current_row_bg: Color::DarkGray,
+        }
+    }
+
+    pub fn neon_blue() -> Self {
+        Self {
+            bg: Color::Reset,
+            fg: Color::Rgb(0xd8, 0xf7, 0xff),
+            fg_dim: Color::Rgb(0x5a, 0x8f, 0xaa),
+            border: Color::Rgb(0x16, 0x48, 0x66),
+            border_focus: Color::Rgb(0x00, 0xcc, 0xff),
+            accent: Color::Rgb(0x33, 0xf6, 0xff),
+            note: Color::Rgb(0x8f, 0xef, 0xff),
+            instrument: Color::Rgb(0x4c, 0xb8, 0xff),
+            volume: Color::Rgb(0x6c, 0xe7, 0xff),
+            effect: Color::Rgb(0xb6, 0xf4, 0xff),
+            meter_low: Color::Rgb(0x16, 0x8d, 0xff),
+            meter_mid: Color::Rgb(0x22, 0xd8, 0xff),
+            meter_high: Color::Rgb(0xe2, 0xfb, 0xff),
+            current_row_bg: Color::Rgb(0x06, 0x28, 0x3b),
+        }
+    }
+
+    pub fn neon_green() -> Self {
+        Self {
+            bg: Color::Reset,
+            fg: Color::Rgb(0xd8, 0xff, 0xdf),
+            fg_dim: Color::Rgb(0x5a, 0xaa, 0x6a),
+            border: Color::Rgb(0x16, 0x5a, 0x22),
+            border_focus: Color::Rgb(0x00, 0xff, 0x66),
+            accent: Color::Rgb(0x33, 0xff, 0x88),
+            note: Color::Rgb(0x8f, 0xff, 0xa0),
+            instrument: Color::Rgb(0x4c, 0xff, 0xaa),
+            volume: Color::Rgb(0x6c, 0xff, 0xc0),
+            effect: Color::Rgb(0xb6, 0xff, 0xe0),
+            meter_low: Color::Rgb(0x16, 0xcc, 0x44),
+            meter_mid: Color::Rgb(0x22, 0xff, 0x77),
+            meter_high: Color::Rgb(0xe2, 0xff, 0xf0),
+            current_row_bg: Color::Rgb(0x06, 0x28, 0x10),
+        }
+    }
+
+    pub fn neon_orange() -> Self {
+        Self {
+            bg: Color::Reset,
+            fg: Color::Rgb(0xff, 0xf0, 0xd8),
+            fg_dim: Color::Rgb(0xaa, 0x88, 0x5a),
+            border: Color::Rgb(0x66, 0x33, 0x16),
+            border_focus: Color::Rgb(0xff, 0x88, 0x00),
+            accent: Color::Rgb(0xff, 0xaa, 0x33),
+            note: Color::Rgb(0xff, 0xd5, 0x8f),
+            instrument: Color::Rgb(0xff, 0x8c, 0x4c),
+            volume: Color::Rgb(0xff, 0xc6, 0x6c),
+            effect: Color::Rgb(0xff, 0xd4, 0xb6),
+            meter_low: Color::Rgb(0xff, 0x6a, 0x16),
+            meter_mid: Color::Rgb(0xff, 0xa0, 0x22),
+            meter_high: Color::Rgb(0xff, 0xf2, 0xe2),
+            current_row_bg: Color::Rgb(0x3b, 0x1f, 0x06),
+        }
+    }
+
+    pub fn c64() -> Self {
+        Self {
+            bg: Color::Rgb(0x35, 0x28, 0x79),
+            fg: Color::Rgb(0x6c, 0x5e, 0xb5),
+            fg_dim: Color::Rgb(0x4a, 0x3d, 0x99),
+            border: Color::Rgb(0x6c, 0x5e, 0xb5),
+            border_focus: Color::White,
+            accent: Color::White,
+            note: Color::Rgb(0x6c, 0x5e, 0xb5),
+            instrument: Color::Rgb(0x70, 0xa4, 0xb2),
+            volume: Color::White,
+            effect: Color::Rgb(0x9a, 0x67, 0x59),
+            meter_low: Color::Rgb(0x6c, 0x5e, 0xb5),
+            meter_mid: Color::White,
+            meter_high: Color::Rgb(0x9a, 0x67, 0x59),
+            current_row_bg: Color::Rgb(0x4a, 0x3d, 0x99),
+        }
+    }
+
+    pub fn mono() -> Self {
+        Self {
+            bg: Color::Black,
+            fg: Color::Rgb(0xe0, 0xe0, 0xe0),
+            fg_dim: Color::Rgb(0x70, 0x70, 0x70),
+            border: Color::Rgb(0x40, 0x40, 0x40),
+            border_focus: Color::White,
+            accent: Color::White,
+            note: Color::Rgb(0xd0, 0xd0, 0xd0),
+            instrument: Color::Rgb(0xb0, 0xb0, 0xb0),
+            volume: Color::Rgb(0xc0, 0xc0, 0xc0),
+            effect: Color::Rgb(0x90, 0x90, 0x90),
+            meter_low: Color::Rgb(0x60, 0x60, 0x60),
+            meter_mid: Color::Rgb(0xa0, 0xa0, 0xa0),
+            meter_high: Color::White,
+            current_row_bg: Color::Rgb(0x1a, 0x1a, 0x1a),
         }
     }
 

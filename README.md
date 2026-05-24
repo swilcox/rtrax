@@ -90,7 +90,8 @@ Select a built-in or custom theme in `$XDG_CONFIG_HOME/rtrax/config.toml`:
 theme = "default"
 ```
 
-Built-ins are `default`, `high-contrast`, and `sixteen`. Custom themes live in
+Built-ins are `default`, `high-contrast`, `sixteen`, `neon-blue`, `neon-green`,
+`neon-orange`, `c64`, and `mono`. Custom themes live in
 `$XDG_CONFIG_HOME/rtrax/themes/<name>.toml` and are selected by file stem:
 
 ```toml

@@ -319,6 +319,14 @@ impl App {
     fn draw(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
         terminal.draw(|f| {
             let area = f.area();
+            // Paint the theme background across the whole frame so themes
+            // with an explicit `bg` (e.g. c64) actually take effect. Widgets
+            // that don't set their own bg will inherit this.
+            f.render_widget(
+                ratatui::widgets::Block::default()
+                    .style(ratatui::style::Style::default().bg(self.theme.bg).fg(self.theme.fg)),
+                area,
+            );
             let rows = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
