@@ -97,6 +97,9 @@ pub struct App {
     /// Most recent path we asked the audio thread to play. Drives n/p in the
     /// folder.
     current_path: Option<PathBuf>,
+    /// Transient status-line message and its expiration time. Currently used
+    /// to flash the theme name on cycle.
+    notice: Option<(String, Instant)>,
 }
 
 impl App {
@@ -141,6 +144,7 @@ impl App {
             should_quit: false,
             volume_millibel: 0,
             current_path: initial_path,
+            notice: None,
         })
     }
 
@@ -306,6 +310,10 @@ impl App {
         let next = (current + 1) % self.theme_choices.len();
         self.theme_choice = self.theme_choices[next].clone();
         self.theme = resolve_theme(&self.theme_choice);
+        self.notice = Some((
+            format!("theme: {}", self.theme_choice.name()),
+            Instant::now() + Duration::from_millis(1500),
+        ));
     }
 
     fn draw(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
@@ -378,15 +386,24 @@ impl App {
             widgets::spectrum::render(f, bottom[0], &self.spectrum, &self.theme);
             widgets::master::render(f, bottom[1], &self.master_state, &self.theme);
 
-            // Status hint
-            let hint = "[space] play  [n] next  [/] browse  [?] help  [q] quit";
+            // Status hint, or a transient notice (e.g. theme name on cycle).
             use ratatui::style::Style;
             use ratatui::text::{Line, Span};
             use ratatui::widgets::Paragraph;
-            let p = Paragraph::new(Line::from(Span::styled(
-                hint,
-                Style::default().fg(self.theme.fg_dim),
-            )));
+            let now = Instant::now();
+            let live_notice = self
+                .notice
+                .as_ref()
+                .filter(|(_, until)| *until > now)
+                .map(|(text, _)| text.as_str());
+            let (text, style) = match live_notice {
+                Some(text) => (text, self.theme.accent_style()),
+                None => (
+                    "[space] play  [n] next  [/] browse  [?] help  [q] quit",
+                    Style::default().fg(self.theme.fg_dim),
+                ),
+            };
+            let p = Paragraph::new(Line::from(Span::styled(text, style)));
             f.render_widget(p, rows[3]);
 
             if self.show_help {
