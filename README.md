@@ -62,13 +62,60 @@ cargo run --release --example load_print -- some_song.xm
 Release-mode is meaningful — debug-mode FFT + decode can underrun the audio
 buffer on modest hardware.
 
+## CLI options
+
+```
+rtrax [OPTIONS] [FILES]...
+```
+
+| Option | Description |
+|--------|-------------|
+| `[FILES]...` | One or more module files. Two or more become an inline playlist; `n`/`p` navigate within it. |
+| `-l`, `--playlist <FILE>` | Load an M3U playlist; `n`/`p` navigate within it and `a` saves to it. |
+| `--theme <THEME>` | Override the theme from config (e.g. `neon-blue`, `c64`, `mono`). |
+| `--no-config` | Skip the config file and use built-in defaults. |
+| `-h`, `--help` | Print help. |
+| `-V`, `--version` | Print version. |
+
+## Playlists
+
+rtrax uses the standard M3U format — plain text, one file path per line,
+lines starting with `#` are comments or metadata and are ignored.
+
+**Loading a playlist:**
+
+```sh
+# Load from a .m3u file; n/p navigate within it.
+rtrax --playlist my-favourites.m3u
+
+# Pass multiple files directly — they become an inline playlist for the session.
+rtrax *.xm
+```
+
+**Adding songs while playing:**
+
+Press `a` to append the currently-playing file to the active playlist. If no
+playlist is loaded, the song is saved to the default playlist at:
+
+- **Linux:** `~/.local/share/rtrax/playlist.m3u`
+- **macOS:** `~/Library/Application Support/rtrax/playlist.m3u`
+
+The file is created automatically (with an `#EXTM3U` header) if it doesn't
+exist yet. Pressing `a` multiple times is safe — each press appends one entry.
+
+**Navigation priority:**
+
+`n` and `p` check the active playlist first. If no playlist is loaded (e.g.
+you opened a single file), they fall back to the files in the same folder.
+
 ## Keybindings
 
 | Key       | Action                       |
 |-----------|------------------------------|
 | `space`   | Play / pause                 |
 | `s`       | Stop                         |
-| `n` / `p` | Next / previous in folder    |
+| `n` / `p` | Next / previous (playlist, then folder) |
+| `a`       | Add current song to playlist |
 | `←` / `→` | Seek −5 s / +5 s             |
 | `[` / `]` | Volume down / up             |
 | `/`       | Focus file browser           |
@@ -80,7 +127,7 @@ buffer on modest hardware.
 | `?`       | Help overlay                 |
 | `q`       | Quit                         |
 
-Override in `$XDG_CONFIG_HOME/rtrax/config.toml`.
+Override any binding in `$XDG_CONFIG_HOME/rtrax/config.toml`.
 
 ## Themes
 
