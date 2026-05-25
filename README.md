@@ -79,6 +79,8 @@ rtrax [OPTIONS] [FILES]...
 
 ## Playlists
 
+> Full details: [docs/playlists.md](docs/playlists.md)
+
 rtrax uses the standard M3U format — plain text, one file path per line,
 lines starting with `#` are comments or metadata and are ignored.
 
