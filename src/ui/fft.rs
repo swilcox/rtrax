@@ -116,3 +116,72 @@ impl Spectrum {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_spectrum_has_zero_bands() {
+        let s = Spectrum::new(44100.0, 16);
+        assert_eq!(s.bands().len(), 16);
+        assert!(s.bands().iter().all(|&v| v == 0.0));
+    }
+
+    #[test]
+    fn resize_bands_grows_and_shrinks() {
+        let mut s = Spectrum::new(44100.0, 8);
+        assert_eq!(s.bands().len(), 8);
+
+        s.resize_bands(32);
+        assert_eq!(s.bands().len(), 32);
+
+        s.resize_bands(4);
+        assert_eq!(s.bands().len(), 4);
+    }
+
+    #[test]
+    fn resize_bands_noop_when_same_size() {
+        let mut s = Spectrum::new(44100.0, 16);
+        s.resize_bands(16);
+        assert_eq!(s.bands().len(), 16);
+    }
+
+    #[test]
+    fn resize_bands_clamps_zero_to_one() {
+        let mut s = Spectrum::new(44100.0, 4);
+        s.resize_bands(0);
+        assert_eq!(s.bands().len(), 1, "0 bands should clamp to 1");
+    }
+
+    #[test]
+    fn step_with_empty_consumer_does_not_panic() {
+        let (_tx, mut rx) = rtrb::RingBuffer::<f32>::new(64);
+        let mut s = Spectrum::new(44100.0, 8);
+        s.step(&mut rx);
+        // bands decay toward zero; they should stay in [0, 1]
+        assert!(s.bands().iter().all(|&v| v >= 0.0 && v <= 1.0));
+    }
+
+    #[test]
+    fn step_with_silence_keeps_bands_near_zero() {
+        let (mut tx, mut rx) = rtrb::RingBuffer::<f32>::new(FFT_SIZE * 2);
+        for _ in 0..FFT_SIZE {
+            let _ = tx.push(0.0);
+        }
+        let mut s = Spectrum::new(44100.0, 8);
+        // Run a few steps so the decay settles.
+        for _ in 0..5 {
+            s.step(&mut rx);
+        }
+        for &v in s.bands() {
+            assert!(v < 0.01, "expected near-zero band, got {v}");
+        }
+    }
+
+    #[test]
+    fn default_bands_count_is_used_when_constructed() {
+        let s = Spectrum::new(48000.0, DEFAULT_BANDS);
+        assert_eq!(s.bands().len(), DEFAULT_BANDS);
+    }
+}

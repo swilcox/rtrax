@@ -21,6 +21,7 @@ pub enum Action {
     CyclePatternStack,
     TogglePatternCompact,
     Help,
+    AddToPlaylist,
     Up,
     Down,
     PageUp,
@@ -58,6 +59,7 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.cycle_pattern_stack, Action::CyclePatternStack),
         (&keymap.toggle_pattern_compact, Action::TogglePatternCompact),
         (&keymap.help, Action::Help),
+        (&keymap.add_to_playlist, Action::AddToPlaylist),
     ];
 
     for (binds, action) in pairs {
@@ -173,6 +175,15 @@ mod tests {
         assert_eq!(
             match_key(&keymap, &key(KeyCode::BackTab, KeyModifiers::SHIFT)),
             Some(Action::CycleFocus)
+        );
+    }
+
+    #[test]
+    fn add_to_playlist_binding_is_wired() {
+        let keymap = KeyMap::default();
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('a'), KeyModifiers::empty())),
+            Some(Action::AddToPlaylist)
         );
     }
 

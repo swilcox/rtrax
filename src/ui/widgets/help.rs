@@ -29,7 +29,8 @@ pub fn render(f: &mut Frame, area: Rect, theme: &Theme) {
     let lines = vec![
         line("space", "play / pause"),
         line("s", "stop"),
-        line("n / p", "next / previous module in folder"),
+        line("n / p", "next / previous (playlist or folder)"),
+        line("a", "add current song to playlist"),
         line("← / →", "seek -5s / +5s"),
         line("[ / ]", "volume down / up"),
         line("/", "focus browser"),

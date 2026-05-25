@@ -5,5 +5,6 @@
 pub mod audio;
 pub mod config;
 pub mod input;
+pub mod playlist;
 pub mod state;
 pub mod ui;

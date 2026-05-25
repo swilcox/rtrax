@@ -74,6 +74,28 @@ impl ThemeChoice {
             Self::Custom(name) => name,
         }
     }
+
+    pub fn from_name(s: &str) -> Self {
+        let normalized = s.trim().to_ascii_lowercase().replace(['_', ' '], "-");
+        match normalized.as_str() {
+            "default" => Self::BuiltIn(BuiltInTheme::Default),
+            "highcontrast" | "high-contrast" => Self::BuiltIn(BuiltInTheme::HighContrast),
+            "sixteen" | "16" => Self::BuiltIn(BuiltInTheme::Sixteen),
+            "neon-blue" => Self::BuiltIn(BuiltInTheme::NeonBlue),
+            "neon-green" => Self::BuiltIn(BuiltInTheme::NeonGreen),
+            "neon-orange" => Self::BuiltIn(BuiltInTheme::NeonOrange),
+            "c64" | "commodore-64" | "commodore64" => Self::BuiltIn(BuiltInTheme::C64),
+            "mono" | "monochrome" => Self::BuiltIn(BuiltInTheme::Mono),
+            _ => Self::Custom(s.to_string()),
+        }
+    }
+}
+
+impl std::str::FromStr for ThemeChoice {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from_name(s))
+    }
 }
 
 impl Serialize for ThemeChoice {
@@ -91,18 +113,7 @@ impl<'de> Deserialize<'de> for ThemeChoice {
         D: Deserializer<'de>,
     {
         let raw = String::deserialize(deserializer)?;
-        let normalized = raw.trim().to_ascii_lowercase().replace(['_', ' '], "-");
-        Ok(match normalized.as_str() {
-            "default" => Self::BuiltIn(BuiltInTheme::Default),
-            "highcontrast" | "high-contrast" => Self::BuiltIn(BuiltInTheme::HighContrast),
-            "sixteen" | "16" => Self::BuiltIn(BuiltInTheme::Sixteen),
-            "neon-blue" => Self::BuiltIn(BuiltInTheme::NeonBlue),
-            "neon-green" => Self::BuiltIn(BuiltInTheme::NeonGreen),
-            "neon-orange" => Self::BuiltIn(BuiltInTheme::NeonOrange),
-            "c64" | "commodore-64" | "commodore64" => Self::BuiltIn(BuiltInTheme::C64),
-            "mono" | "monochrome" => Self::BuiltIn(BuiltInTheme::Mono),
-            _ => Self::Custom(raw),
-        })
+        Ok(Self::from_name(&raw))
     }
 }
 
@@ -125,6 +136,7 @@ pub struct KeyMap {
     pub cycle_pattern_stack: Vec<String>,
     pub toggle_pattern_compact: Vec<String>,
     pub help: Vec<String>,
+    pub add_to_playlist: Vec<String>,
 }
 
 impl Default for KeyMap {
@@ -147,7 +159,151 @@ impl Default for KeyMap {
             cycle_pattern_stack: vec!["w".into()],
             toggle_pattern_compact: vec!["c".into()],
             help: vec!["?".into()],
+            add_to_playlist: vec!["a".into()],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── ThemeChoice::from_name ───────────────────────────────────────────────
+
+    #[test]
+    fn from_name_recognises_all_builtin_names() {
+        let cases = [
+            ("default", BuiltInTheme::Default),
+            ("high-contrast", BuiltInTheme::HighContrast),
+            ("sixteen", BuiltInTheme::Sixteen),
+            ("neon-blue", BuiltInTheme::NeonBlue),
+            ("neon-green", BuiltInTheme::NeonGreen),
+            ("neon-orange", BuiltInTheme::NeonOrange),
+            ("c64", BuiltInTheme::C64),
+            ("mono", BuiltInTheme::Mono),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(
+                ThemeChoice::from_name(name),
+                ThemeChoice::BuiltIn(expected),
+                "failed for {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_name_recognises_aliases() {
+        assert_eq!(
+            ThemeChoice::from_name("16"),
+            ThemeChoice::BuiltIn(BuiltInTheme::Sixteen)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("commodore-64"),
+            ThemeChoice::BuiltIn(BuiltInTheme::C64)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("commodore64"),
+            ThemeChoice::BuiltIn(BuiltInTheme::C64)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("monochrome"),
+            ThemeChoice::BuiltIn(BuiltInTheme::Mono)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("highcontrast"),
+            ThemeChoice::BuiltIn(BuiltInTheme::HighContrast)
+        );
+    }
+
+    #[test]
+    fn from_name_is_case_insensitive() {
+        assert_eq!(
+            ThemeChoice::from_name("DEFAULT"),
+            ThemeChoice::BuiltIn(BuiltInTheme::Default)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("Mono"),
+            ThemeChoice::BuiltIn(BuiltInTheme::Mono)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("NEON-BLUE"),
+            ThemeChoice::BuiltIn(BuiltInTheme::NeonBlue)
+        );
+    }
+
+    #[test]
+    fn from_name_normalises_underscores_and_spaces() {
+        assert_eq!(
+            ThemeChoice::from_name("neon_blue"),
+            ThemeChoice::BuiltIn(BuiltInTheme::NeonBlue)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("neon blue"),
+            ThemeChoice::BuiltIn(BuiltInTheme::NeonBlue)
+        );
+        assert_eq!(
+            ThemeChoice::from_name("high_contrast"),
+            ThemeChoice::BuiltIn(BuiltInTheme::HighContrast)
+        );
+    }
+
+    #[test]
+    fn from_name_unknown_becomes_custom() {
+        let choice = ThemeChoice::from_name("my-custom-theme");
+        assert!(matches!(choice, ThemeChoice::Custom(_)));
+        assert_eq!(choice.name(), "my-custom-theme");
+    }
+
+    #[test]
+    fn theme_choice_name_roundtrips_for_all_builtins() {
+        for &builtin in BuiltInTheme::ALL {
+            let choice = ThemeChoice::BuiltIn(builtin);
+            let roundtripped = ThemeChoice::from_name(choice.name());
+            assert_eq!(roundtripped, choice, "roundtrip failed for {:?}", builtin);
+        }
+    }
+
+    // ── serde ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn theme_choice_serializes_to_name_string() {
+        #[derive(serde::Serialize)]
+        struct W {
+            theme: ThemeChoice,
+        }
+        let s = toml::to_string(&W {
+            theme: ThemeChoice::BuiltIn(BuiltInTheme::NeonBlue),
+        })
+        .unwrap();
+        assert!(s.contains("neon-blue"), "got: {s}");
+    }
+
+    #[test]
+    fn theme_choice_deserializes_from_name_string() {
+        #[derive(serde::Deserialize)]
+        struct W {
+            theme: ThemeChoice,
+        }
+        let w: W = toml::from_str("theme = \"c64\"").unwrap();
+        assert_eq!(w.theme, ThemeChoice::BuiltIn(BuiltInTheme::C64));
+    }
+
+    #[test]
+    fn config_default_has_default_theme() {
+        let cfg = Config::default();
+        assert_eq!(cfg.theme, ThemeChoice::BuiltIn(BuiltInTheme::Default));
+    }
+
+    // ── KeyMap ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn keymap_default_contains_expected_bindings() {
+        let km = KeyMap::default();
+        assert!(km.quit.contains(&"q".to_string()));
+        assert!(km.quit.contains(&"ctrl+c".to_string()));
+        assert!(km.play_pause.contains(&"space".to_string()));
+        assert!(km.add_to_playlist.contains(&"a".to_string()));
+        assert!(km.help.contains(&"?".to_string()));
     }
 }
 

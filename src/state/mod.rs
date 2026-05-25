@@ -265,6 +265,34 @@ mod tests {
     }
 
     #[test]
+    fn atomic_u64_pair_roundtrip_zero_and_max() {
+        let pair = AtomicU64Pair::new(0);
+        assert_eq!(pair.load(), 0);
+
+        pair.store(u64::MAX);
+        assert_eq!(pair.load(), u64::MAX);
+
+        // Value that exercises both halves non-trivially.
+        let v: u64 = 0xDEAD_BEEF_CAFE_1234;
+        pair.store(v);
+        assert_eq!(pair.load(), v);
+    }
+
+    #[test]
+    fn vu_last_valid_channel_works() {
+        let state = SharedState::new();
+        state.set_vu(MAX_CHANNELS - 1, 0.1, 0.9);
+        assert_eq!(state.vu(MAX_CHANNELS - 1), (0.1, 0.9));
+    }
+
+    #[test]
+    fn set_last_instrument_out_of_bounds_is_silent() {
+        let state = SharedState::new();
+        state.set_last_instrument(MAX_CHANNELS, 42);
+        assert_eq!(state.last_instrument(MAX_CHANNELS), 0);
+    }
+
+    #[test]
     fn pattern_cache_is_replaceable() {
         let state = SharedState::new();
         let cache = Arc::new(PatternCache::default());

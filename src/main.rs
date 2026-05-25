@@ -1,18 +1,50 @@
 use anyhow::Result;
+use clap::Parser;
 use rtrax::audio::command::Command;
 use rtrax::audio::{self, FFT_RING_CAPACITY};
-use rtrax::config::Config;
+use rtrax::config::{Config, ThemeChoice};
+use rtrax::playlist::Playlist;
 use rtrax::state::SharedState;
 use rtrax::ui::{restore_terminal_for_panic, App};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
+#[derive(Parser)]
+#[command(name = "rtrax", version, about = "TUI MOD/XM/IT/S3M/MTM module player")]
+struct Cli {
+    /// Module file(s) to play. Multiple files become an inline playlist.
+    files: Vec<PathBuf>,
+
+    /// Playlist file (.m3u) to load; n/p navigate within it and `a` saves here.
+    #[arg(long, short = 'l', value_name = "FILE")]
+    playlist: Option<PathBuf>,
+
+    /// Override the theme set in config (e.g. neon-blue, c64, mono).
+    #[arg(long, value_name = "THEME")]
+    theme: Option<ThemeChoice>,
+
+    /// Skip the config file and use built-in defaults.
+    #[arg(long)]
+    no_config: bool,
+}
+
 fn main() -> Result<()> {
+    let cli = Cli::parse();
+
     install_logger();
     install_panic_hook();
 
-    let initial_path: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from);
+    let mut config = if cli.no_config {
+        Config::default()
+    } else {
+        Config::load()
+    };
+    if let Some(theme) = cli.theme {
+        config.theme = theme;
+    }
+
+    let (initial_path, playlist) = resolve_sources(cli.files, cli.playlist)?;
 
     let state = Arc::new(SharedState::new());
     let (fft_tx, fft_rx) = rtrb::RingBuffer::<f32>::new(FFT_RING_CAPACITY);
@@ -28,9 +60,34 @@ fn main() -> Result<()> {
         }
     }
 
-    let config = Config::load();
-    let app = App::new(state, audio, fft_rx, config, initial_path)?;
+    let app = App::new(state, audio, fft_rx, config, initial_path, playlist)?;
     app.run()
+}
+
+/// Decide what to play first and what playlist (if any) governs n/p navigation.
+///
+/// - `--playlist <file>`: load from disk; play the first entry.
+/// - Two or more positional files: build an in-memory playlist; play the first.
+/// - One positional file: play it directly; no playlist (n/p uses the browser).
+/// - No arguments: no initial file, no playlist (open with the browser).
+fn resolve_sources(
+    files: Vec<PathBuf>,
+    playlist_path: Option<PathBuf>,
+) -> Result<(Option<PathBuf>, Option<Playlist>)> {
+    if let Some(pl_path) = playlist_path {
+        let playlist = Playlist::load(pl_path)?;
+        let initial = playlist.first().cloned();
+        return Ok((initial, Some(playlist)));
+    }
+    match files.len() {
+        0 => Ok((None, None)),
+        1 => Ok((Some(files.into_iter().next().unwrap()), None)),
+        _ => {
+            let playlist = Playlist::from_files(files);
+            let initial = playlist.first().cloned();
+            Ok((initial, Some(playlist)))
+        }
+    }
 }
 
 /// File-only logger. We MUST NOT write to stdout/stderr while ratatui owns the

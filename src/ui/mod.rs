@@ -9,6 +9,7 @@ use crate::audio::command::Command;
 use crate::audio::AudioHandle;
 use crate::config::{BuiltInTheme, Config, ThemeChoice};
 use crate::input::{match_key, Action};
+use crate::playlist::{self, Playlist};
 use crate::state::SharedState;
 use crate::ui::fft::Spectrum;
 use crate::ui::theme::Theme;
@@ -94,11 +95,11 @@ pub struct App {
     pattern_view: PatternView,
     should_quit: bool,
     volume_millibel: i32,
-    /// Most recent path we asked the audio thread to play. Drives n/p in the
-    /// folder.
+    /// Most recent path we asked the audio thread to play.
     current_path: Option<PathBuf>,
-    /// Transient status-line message and its expiration time. Currently used
-    /// to flash the theme name on cycle.
+    /// Active playlist for n/p navigation. None means fall back to browser folder.
+    playlist: Option<Playlist>,
+    /// Transient status-line message and its expiration time.
     notice: Option<(String, Instant)>,
 }
 
@@ -109,6 +110,7 @@ impl App {
         fft_rx: Consumer<f32>,
         config: Config,
         initial_path: Option<PathBuf>,
+        playlist: Option<Playlist>,
     ) -> Result<Self> {
         let spectrum = Spectrum::new(crate::audio::FFT_RING_RATE_HZ as f32, 48);
 
@@ -144,6 +146,7 @@ impl App {
             should_quit: false,
             volume_millibel: 0,
             current_path: initial_path,
+            playlist,
             notice: None,
         })
     }
@@ -162,7 +165,12 @@ impl App {
             // Auto-advance if the song ended.
             if self.state.eof.swap(false, Ordering::Relaxed) {
                 if let Some(path) = self.current_path.clone() {
-                    if let Some(next) = self.browser.next_module(Some(&path)) {
+                    let next = self
+                        .playlist
+                        .as_ref()
+                        .and_then(|pl| pl.next_after(&path))
+                        .or_else(|| self.browser.next_module(Some(&path)));
+                    if let Some(next) = next {
                         self.load_path(next);
                     }
                 }
@@ -222,16 +230,29 @@ impl App {
             Action::Stop => self.audio.send(Command::Stop),
             Action::Next => {
                 let cur = self.current_path.clone();
-                if let Some(next) = self.browser.next_module(cur.as_deref()) {
+                let next = cur.as_deref().and_then(|p| {
+                    self.playlist
+                        .as_ref()
+                        .and_then(|pl| pl.next_after(p))
+                        .or_else(|| self.browser.next_module(Some(p)))
+                });
+                if let Some(next) = next {
                     self.load_path(next);
                 }
             }
             Action::Prev => {
                 let cur = self.current_path.clone();
-                if let Some(prev) = self.browser.prev_module(cur.as_deref()) {
+                let prev = cur.as_deref().and_then(|p| {
+                    self.playlist
+                        .as_ref()
+                        .and_then(|pl| pl.prev_before(p))
+                        .or_else(|| self.browser.prev_module(Some(p)))
+                });
+                if let Some(prev) = prev {
                     self.load_path(prev);
                 }
             }
+            Action::AddToPlaylist => self.add_to_playlist(),
             Action::SeekForward => self.audio.send(Command::SeekRelative(5.0)),
             Action::SeekBack => self.audio.send(Command::SeekRelative(-5.0)),
             Action::VolumeUp => {
@@ -295,6 +316,39 @@ impl App {
             Err(err) => {
                 tracing::error!(?err, "failed to load module");
             }
+        }
+    }
+
+    fn add_to_playlist(&mut self) {
+        let Some(ref current) = self.current_path.clone() else {
+            return;
+        };
+        let save_path = self
+            .playlist
+            .as_ref()
+            .and_then(|pl| pl.path.clone())
+            .or_else(playlist::default_path);
+        let Some(save_path) = save_path else {
+            tracing::warn!("no playlist path available");
+            return;
+        };
+        match playlist::append_to_file(current, &save_path) {
+            Ok(()) => {
+                if let Some(ref mut pl) = self.playlist {
+                    if !pl.entries.contains(current) {
+                        pl.entries.push(current.clone());
+                    }
+                }
+                let display = save_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| save_path.display().to_string());
+                self.notice = Some((
+                    format!("added to {display}"),
+                    Instant::now() + Duration::from_millis(1500),
+                ));
+            }
+            Err(err) => tracing::error!(?err, "failed to add to playlist"),
         }
     }
 
