@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# rtrax pre-commit hook — enforces fmt + clippy before every commit.
+#
+# Install (from repo root):
+#   cp hooks/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+#
+# Or symlink so it stays in sync automatically:
+#   ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+
+set -euo pipefail
+
+echo "→ cargo fmt --check"
+if ! cargo fmt --check; then
+    echo ""
+    echo "  Formatting issues found. Run 'cargo fmt' and re-stage your changes."
+    exit 1
+fi
+
+echo "→ cargo clippy -- -D warnings"
+if ! cargo clippy --release -- -D warnings; then
+    echo ""
+    echo "  Clippy warnings found. Fix them and re-stage your changes."
+    exit 1
+fi
+
+echo "✓ Pre-commit checks passed."

@@ -4,10 +4,10 @@
 //! current terminal's color capability is detected at startup.
 
 use crate::config::{BuiltInTheme, Config, ThemeChoice};
-use std::collections::HashSet;
 use anyhow::{bail, Context, Result};
 use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
