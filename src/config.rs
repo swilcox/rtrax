@@ -164,6 +164,45 @@ impl Default for KeyMap {
     }
 }
 
+impl Config {
+    pub fn config_dir() -> Option<PathBuf> {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
+            .or_else(dirs::config_dir)
+            .map(|base| base.join("rtrax"))
+    }
+
+    pub fn theme_dir() -> Option<PathBuf> {
+        Self::config_dir().map(|dir| dir.join("themes"))
+    }
+
+    pub fn load() -> Self {
+        match Self::try_load() {
+            Ok(Some(cfg)) => cfg,
+            Ok(None) => Self::default(),
+            Err(err) => {
+                tracing::warn!(?err, "failed to load config, using defaults");
+                Self::default()
+            }
+        }
+    }
+
+    fn try_load() -> Result<Option<Self>> {
+        let Some(base) = Self::config_dir() else {
+            return Ok(None);
+        };
+        let path = base.join("config.toml");
+        if !path.exists() {
+            return Ok(None);
+        }
+        let text = std::fs::read_to_string(&path)?;
+        let cfg: Config = toml::from_str(&text)?;
+        Ok(Some(cfg))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,44 +343,5 @@ mod tests {
         assert!(km.play_pause.contains(&"space".to_string()));
         assert!(km.add_to_playlist.contains(&"a".to_string()));
         assert!(km.help.contains(&"?".to_string()));
-    }
-}
-
-impl Config {
-    pub fn config_dir() -> Option<PathBuf> {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from)
-            .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
-            .or_else(dirs::config_dir)
-            .map(|base| base.join("rtrax"))
-    }
-
-    pub fn theme_dir() -> Option<PathBuf> {
-        Self::config_dir().map(|dir| dir.join("themes"))
-    }
-
-    pub fn load() -> Self {
-        match Self::try_load() {
-            Ok(Some(cfg)) => cfg,
-            Ok(None) => Self::default(),
-            Err(err) => {
-                tracing::warn!(?err, "failed to load config, using defaults");
-                Self::default()
-            }
-        }
-    }
-
-    fn try_load() -> Result<Option<Self>> {
-        let Some(base) = Self::config_dir() else {
-            return Ok(None);
-        };
-        let path = base.join("config.toml");
-        if !path.exists() {
-            return Ok(None);
-        }
-        let text = std::fs::read_to_string(&path)?;
-        let cfg: Config = toml::from_str(&text)?;
-        Ok(Some(cfg))
     }
 }

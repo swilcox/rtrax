@@ -160,7 +160,7 @@ mod tests {
         let mut s = Spectrum::new(44100.0, 8);
         s.step(&mut rx);
         // bands decay toward zero; they should stay in [0, 1]
-        assert!(s.bands().iter().all(|&v| v >= 0.0 && v <= 1.0));
+        assert!(s.bands().iter().all(|&v| (0.0..=1.0).contains(&v)));
     }
 
     #[test]
