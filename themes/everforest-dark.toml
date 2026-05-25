@@ -1,0 +1,17 @@
+# Everforest Dark Medium — sainnhe. Soft mossy greens + warm cream.
+extends = "default"
+
+bg             = "#2d353b"  # bg0
+fg             = "#d3c6aa"  # fg
+fg_dim         = "#7a8478"  # grey0
+border         = "#3d484d"  # bg2
+border_focus   = "#a7c080"  # green
+accent         = "#d699b6"  # purple
+note           = "#a7c080"  # green
+instrument     = "#7fbbb3"  # blue
+volume         = "#dbbc7f"  # yellow
+effect         = "#e69875"  # orange
+meter_low      = "#83c092"  # aqua
+meter_mid      = "#dbbc7f"  # yellow
+meter_high     = "#e67e80"  # red
+current_row_bg = "#475258"  # bg3

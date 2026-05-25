@@ -1,0 +1,18 @@
+# Tokyo Night — Enkia/folke. Modern dark-mode classic.
+# Desaturated navy/indigo with soft blues + magenta accents.
+extends = "default"
+
+bg             = "#1a1b26"  # bg
+fg             = "#c0caf5"  # foreground
+fg_dim         = "#565f89"  # comment
+border         = "#292e42"  # surface
+border_focus   = "#7aa2f7"  # blue
+accent         = "#bb9af7"  # magenta
+note           = "#9ece6a"  # green
+instrument     = "#7dcfff"  # cyan
+volume         = "#e0af68"  # yellow
+effect         = "#f7768e"  # red
+meter_low      = "#9ece6a"  # green
+meter_mid      = "#e0af68"  # yellow
+meter_high     = "#f7768e"  # red
+current_row_bg = "#283457"  # selection

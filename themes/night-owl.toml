@@ -1,0 +1,17 @@
+# Night Owl — Sarah Drasner. Deep navy with citrine/coral accents.
+extends = "default"
+
+bg             = "#011627"  # bg
+fg             = "#d6deeb"  # fg
+fg_dim         = "#637777"  # comment
+border         = "#1d3b53"  # selection
+border_focus   = "#82aaff"  # blue
+accent         = "#c792ea"  # purple
+note           = "#addb67"  # green
+instrument     = "#7fdbca"  # cyan
+volume         = "#ecc48d"  # yellow
+effect         = "#f78c6c"  # orange
+meter_low      = "#addb67"  # green
+meter_mid      = "#ecc48d"  # yellow
+meter_high     = "#ef5350"  # red
+current_row_bg = "#1d3b53"  # selection

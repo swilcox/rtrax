@@ -1,0 +1,18 @@
+# Kanagawa — inspired by Hokusai's "The Great Wave off Kanagawa".
+# Sumi-ink bg, wave blues, autumn reds. github.com/rebelot/kanagawa.nvim
+extends = "default"
+
+bg             = "#1f1f28"  # sumiInk1
+fg             = "#dcd7ba"  # fujiWhite
+fg_dim         = "#727169"  # fujiGray
+border         = "#363646"  # sumiInk3
+border_focus   = "#7e9cd8"  # crystalBlue
+accent         = "#957fb8"  # oniViolet
+note           = "#98bb6c"  # springGreen
+instrument     = "#7fb4ca"  # springBlue
+volume         = "#e6c384"  # carpYellow
+effect         = "#d27e99"  # sakuraPink
+meter_low      = "#76946a"  # autumnGreen
+meter_mid      = "#ffa066"  # surimiOrange
+meter_high     = "#c34043"  # autumnRed
+current_row_bg = "#2d4f67"  # waveBlue2

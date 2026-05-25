@@ -1,0 +1,17 @@
+# Synthwave '84 — Robb Owen. Vaporwave: hot pink + cyan on deep purple.
+extends = "default"
+
+bg             = "#2a2139"  # bg
+fg             = "#f4eee4"  # fg
+fg_dim         = "#848bbd"  # comment
+border         = "#34294f"  # selection
+border_focus   = "#36f9f6"  # cyan
+accent         = "#ff7edb"  # hot pink
+note           = "#72f1b8"  # mint
+instrument     = "#36f9f6"  # cyan
+volume         = "#fede5d"  # yellow
+effect         = "#ff7edb"  # pink
+meter_low      = "#72f1b8"  # mint
+meter_mid      = "#fede5d"  # yellow
+meter_high     = "#fe4450"  # red-orange
+current_row_bg = "#3b2f5e"  # lifted selection

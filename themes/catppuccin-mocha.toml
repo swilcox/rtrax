@@ -1,0 +1,17 @@
+# Catppuccin Mocha — soothing pastel theme. catppuccin.com
+extends = "default"
+
+bg             = "#1e1e2e"  # base
+fg             = "#cdd6f4"  # text
+fg_dim         = "#6c7086"  # overlay0
+border         = "#313244"  # surface0
+border_focus   = "#89b4fa"  # blue
+accent         = "#cba6f7"  # mauve
+note           = "#a6e3a1"  # green
+instrument     = "#89dceb"  # sky
+volume         = "#f9e2af"  # yellow
+effect         = "#f5c2e7"  # pink
+meter_low      = "#a6e3a1"  # green
+meter_mid      = "#f9e2af"  # yellow
+meter_high     = "#f38ba8"  # red
+current_row_bg = "#45475a"  # surface1

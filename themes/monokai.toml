@@ -1,0 +1,18 @@
+# Monokai — Wimer Hazenberg, popularised by Sublime Text.
+# Lime/pink/orange on near-black olive.
+extends = "default"
+
+bg             = "#272822"  # background
+fg             = "#f8f8f2"  # foreground
+fg_dim         = "#75715e"  # comment
+border         = "#3e3d32"  # darker olive
+border_focus   = "#a6e22e"  # green
+accent         = "#f92672"  # pink
+note           = "#a6e22e"  # green
+instrument     = "#66d9ef"  # blue
+volume         = "#e6db74"  # yellow
+effect         = "#ae81ff"  # purple
+meter_low      = "#a6e22e"  # green
+meter_mid      = "#fd971f"  # orange
+meter_high     = "#f92672"  # pink/red
+current_row_bg = "#49483e"  # selection

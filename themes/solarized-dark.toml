@@ -1,0 +1,17 @@
+# Solarized Dark — Ethan Schoonover. Scientifically balanced ochre/teal on cyan-black.
+extends = "default"
+
+bg             = "#002b36"  # base03
+fg             = "#839496"  # base0
+fg_dim         = "#586e75"  # base01
+border         = "#073642"  # base02
+border_focus   = "#268bd2"  # blue
+accent         = "#d33682"  # magenta
+note           = "#859900"  # green
+instrument     = "#2aa198"  # cyan
+volume         = "#b58900"  # yellow
+effect         = "#cb4b16"  # orange
+meter_low      = "#859900"  # green
+meter_mid      = "#b58900"  # yellow
+meter_high     = "#dc322f"  # red
+current_row_bg = "#073642"  # base02

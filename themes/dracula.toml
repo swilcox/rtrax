@@ -1,0 +1,18 @@
+# Dracula — saturated purple/pink on dark slate.
+# Palette: draculatheme.com
+extends = "default"
+
+bg             = "#282a36"  # background
+fg             = "#f8f8f2"  # foreground
+fg_dim         = "#6272a4"  # comment
+border         = "#44475a"  # current line / selection
+border_focus   = "#bd93f9"  # purple
+accent         = "#ff79c6"  # pink
+note           = "#50fa7b"  # green
+instrument     = "#8be9fd"  # cyan
+volume         = "#f1fa8c"  # yellow
+effect         = "#ffb86c"  # orange
+meter_low      = "#50fa7b"  # green
+meter_mid      = "#f1fa8c"  # yellow
+meter_high     = "#ff5555"  # red
+current_row_bg = "#44475a"  # selection

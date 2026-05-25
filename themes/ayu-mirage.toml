@@ -1,0 +1,17 @@
+# Ayu Mirage — dempfi/ayu. Desaturated teal bg + warm orange highlights.
+extends = "default"
+
+bg             = "#1f2430"  # bg
+fg             = "#cbccc6"  # fg
+fg_dim         = "#5c6773"  # comment
+border         = "#272d38"  # panel
+border_focus   = "#5ccfe6"  # entity (cyan)
+accent         = "#ffcc66"  # accent yellow
+note           = "#bae67e"  # string (green)
+instrument     = "#5ccfe6"  # cyan
+volume         = "#ffd580"  # warm tag yellow
+effect         = "#f28779"  # markup pink
+meter_low      = "#bae67e"  # green
+meter_mid      = "#ffa759"  # keyword orange
+meter_high     = "#f28779"  # markup
+current_row_bg = "#34455a"  # selection

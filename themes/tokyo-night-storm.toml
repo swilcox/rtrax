@@ -1,0 +1,17 @@
+# Tokyo Night Storm — softer, more blue-leaning sibling of Tokyo Night.
+extends = "default"
+
+bg             = "#24283b"  # storm bg
+fg             = "#c0caf5"
+fg_dim         = "#565f89"
+border         = "#2f3549"
+border_focus   = "#7aa2f7"
+accent         = "#bb9af7"
+note           = "#9ece6a"
+instrument     = "#7dcfff"
+volume         = "#e0af68"
+effect         = "#f7768e"
+meter_low      = "#9ece6a"
+meter_mid      = "#e0af68"
+meter_high     = "#f7768e"
+current_row_bg = "#2e3c64"

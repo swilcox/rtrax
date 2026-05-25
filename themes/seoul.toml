@@ -1,0 +1,29 @@
+# Official Seoul 10 Colors — SC/SCN codes from the Seoul Metropolitan Government.
+# Source: english.seoul.go.kr/wp-content/uploads/2026/03/seoul_color_10_v2.pdf
+#
+# SC2940 기와진회색  Roof Tile Dark Gray  #504e49
+# SC0916 고궁갈색   Palace Brown         #594743
+# SC4907 남산초록색  Namsan Green         #455f54
+# SC2920 돌담회색   Stone Wall Gray      #a4a199
+# SC1941 삼베연미색  Hemp Cream           #d8ccad
+# SCN902 한강은백색  Hangang Silver       #dfdfdd
+# SC7909 서울하늘색  Seoul Sky Blue       #6789ca
+# SC1956 꽃담황토색  Flowered Wall Ochre  #bc6f25
+# SC1944 은행노란색  Ginkgo Yellow        #e5b560
+# SC0908 단청빨간색  Dancheong Red        #941e34
+extends = "default"
+
+bg             = "#000000"  # black — improves readability over SC2940
+fg             = "#d8ccad"  # SC1941 삼베연미색  Hemp Cream
+fg_dim         = "#a4a199"  # SC2920 돌담회색   Stone Wall Gray
+border         = "#594743"  # SC0916 고궁갈색   Palace Brown
+border_focus   = "#6789ca"  # SC7909 서울하늘색  Seoul Sky Blue
+accent         = "#941e34"  # SC0908 단청빨간색  Dancheong Red
+note           = "#6789ca"  # SC7909 서울하늘색  Seoul Sky Blue
+instrument     = "#bc6f25"  # SC1956 꽃담황토색  Flowered Wall Ochre
+volume         = "#e5b560"  # SC1944 은행노란색  Ginkgo Yellow
+effect         = "#dfdfdd"  # SCN902 한강은백색  Hangang Silver
+meter_low      = "#455f54"  # SC4907 남산초록색  Namsan Green
+meter_mid      = "#e5b560"  # SC1944 은행노란색  Ginkgo Yellow
+meter_high     = "#941e34"  # SC0908 단청빨간색  Dancheong Red
+current_row_bg = "#455f54"  # SC4907 남산초록색  Namsan Green

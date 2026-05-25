@@ -1,0 +1,17 @@
+# Gruvbox Dark — Pavel Pertsev. Warm retro palette, mustard/orange/red on brown.
+extends = "default"
+
+bg             = "#282828"  # bg0
+fg             = "#ebdbb2"  # fg
+fg_dim         = "#928374"  # gray
+border         = "#3c3836"  # bg1
+border_focus   = "#fabd2f"  # bright yellow
+accent         = "#fe8019"  # bright orange
+note           = "#b8bb26"  # bright green
+instrument     = "#83a598"  # bright blue
+volume         = "#fabd2f"  # bright yellow
+effect         = "#d3869b"  # bright purple
+meter_low      = "#b8bb26"  # green
+meter_mid      = "#fabd2f"  # yellow
+meter_high     = "#fb4934"  # bright red
+current_row_bg = "#504945"  # bg3

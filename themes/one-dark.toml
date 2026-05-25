@@ -1,0 +1,17 @@
+# One Dark — Atom's default. Cool indigo bg with cyan/red/green syntax pops.
+extends = "default"
+
+bg             = "#282c34"  # bg
+fg             = "#abb2bf"  # fg
+fg_dim         = "#5c6370"  # comment
+border         = "#3e4451"  # selection
+border_focus   = "#61afef"  # blue
+accent         = "#c678dd"  # purple
+note           = "#98c379"  # green
+instrument     = "#56b6c2"  # cyan
+volume         = "#e5c07b"  # yellow
+effect         = "#d19a66"  # orange
+meter_low      = "#98c379"  # green
+meter_mid      = "#e5c07b"  # yellow
+meter_high     = "#e06c75"  # red
+current_row_bg = "#3e4451"  # selection

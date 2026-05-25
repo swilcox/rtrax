@@ -1,0 +1,18 @@
+# Nord — Arctic, north-bluish color palette by Arctic Ice Studio.
+# Polar Night + Snow Storm + Frost + Aurora. nordtheme.com
+extends = "default"
+
+bg             = "#2e3440"  # nord0  Polar Night
+fg             = "#d8dee9"  # nord4  Snow Storm
+fg_dim         = "#4c566a"  # nord3
+border         = "#3b4252"  # nord1
+border_focus   = "#88c0d0"  # nord8  Frost
+accent         = "#b48ead"  # nord15 Aurora purple
+note           = "#a3be8c"  # nord14 Aurora green
+instrument     = "#81a1c1"  # nord9  Frost blue
+volume         = "#ebcb8b"  # nord13 Aurora yellow
+effect         = "#d08770"  # nord12 Aurora orange
+meter_low      = "#a3be8c"  # green
+meter_mid      = "#ebcb8b"  # yellow
+meter_high     = "#bf616a"  # nord11 Aurora red
+current_row_bg = "#434c5e"  # nord2
