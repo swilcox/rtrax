@@ -1,7 +1,9 @@
-//! Header bar: title, format, BPM, pattern position, mm:ss / mm:ss.
+//! Header bar: title, format, BPM, pattern position, progress bar, mm:ss / mm:ss.
 
+use crate::config::ProgressBarStyle;
 use crate::state::SharedState;
 use crate::ui::theme::Theme;
+use crate::ui::widgets::progress;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -9,7 +11,13 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 use std::sync::atomic::Ordering;
 
-pub fn render(f: &mut Frame, area: Rect, state: &SharedState, theme: &Theme) {
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    state: &SharedState,
+    theme: &Theme,
+    progress_bar_style: ProgressBarStyle,
+) {
     let title = state.title.lock().map(|s| s.clone()).unwrap_or_default();
     let title = if title.trim().is_empty() {
         state
@@ -85,19 +93,35 @@ pub fn render(f: &mut Frame, area: Rect, state: &SharedState, theme: &Theme) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Split inner into three roughly equal parts; render each line.
-    let cols = ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Horizontal)
+    // Four columns: left status/title, middle stats, progress bar, time.
+    // Time uses a fixed length (mm:ss / mm:ss = 13 chars + a little breathing
+    // room). Bar takes a percentage of the remaining space.
+    use ratatui::layout::{Constraint, Direction, Layout};
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
         .constraints([
-            ratatui::layout::Constraint::Percentage(45),
-            ratatui::layout::Constraint::Percentage(35),
-            ratatui::layout::Constraint::Percentage(20),
+            Constraint::Percentage(40),
+            Constraint::Percentage(30),
+            Constraint::Percentage(18),
+            Constraint::Length(14),
         ])
         .split(inner);
 
+    // Build the progress bar to fit the third column. Leave a 1-cell gap on
+    // either side so the bar doesn't bump into adjacent text.
+    let bar_outer = cols[2];
+    let bar_pad = 1u16;
+    let bar_width = bar_outer.width.saturating_sub(bar_pad.saturating_mul(2)) as usize;
+    let fraction = if dur > 0.0 { (pos / dur) as f32 } else { 0.0 };
+    let bar_line = progress::render(bar_width, fraction, progress_bar_style, theme);
+
     f.render_widget(Paragraph::new(left).alignment(Alignment::Left), cols[0]);
     f.render_widget(Paragraph::new(mid).alignment(Alignment::Center), cols[1]);
-    f.render_widget(Paragraph::new(right).alignment(Alignment::Right), cols[2]);
+    f.render_widget(
+        Paragraph::new(bar_line).alignment(Alignment::Center),
+        cols[2],
+    );
+    f.render_widget(Paragraph::new(right).alignment(Alignment::Right), cols[3]);
 }
 
 fn fmt_mmss(secs: f64) -> String {

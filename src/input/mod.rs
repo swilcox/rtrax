@@ -17,6 +17,7 @@ pub enum Action {
     FocusBrowser,
     CycleFocus,
     CycleTheme,
+    CycleProgressBarStyle,
     ToggleInfo,
     CyclePatternStack,
     TogglePatternCompact,
@@ -56,6 +57,10 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.focus_browser, Action::FocusBrowser),
         (&keymap.cycle_focus, Action::CycleFocus),
         (&keymap.cycle_theme, Action::CycleTheme),
+        (
+            &keymap.cycle_progress_bar_style,
+            Action::CycleProgressBarStyle,
+        ),
         (&keymap.toggle_info, Action::ToggleInfo),
         (&keymap.cycle_pattern_stack, Action::CyclePatternStack),
         (&keymap.toggle_pattern_compact, Action::TogglePatternCompact),
@@ -186,6 +191,15 @@ mod tests {
         assert_eq!(
             match_key(&keymap, &key(KeyCode::Char('a'), KeyModifiers::empty())),
             Some(Action::AddToPlaylist)
+        );
+    }
+
+    #[test]
+    fn cycle_progress_bar_style_binding_is_wired() {
+        let keymap = KeyMap::default();
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('b'), KeyModifiers::empty())),
+            Some(Action::CycleProgressBarStyle)
         );
     }
 

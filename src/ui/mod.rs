@@ -7,7 +7,7 @@ pub mod widgets;
 
 use crate::audio::command::Command;
 use crate::audio::AudioHandle;
-use crate::config::{BuiltInTheme, Config, ThemeChoice};
+use crate::config::{BuiltInTheme, Config, ProgressBarStyle, ThemeChoice};
 use crate::input::{match_key, Action};
 use crate::playlist::{self, Playlist};
 use crate::state::SharedState;
@@ -88,6 +88,7 @@ pub struct App {
     theme: Theme,
     theme_choice: ThemeChoice,
     theme_choices: Vec<ThemeChoice>,
+    progress_bar_style: ProgressBarStyle,
     config: Config,
     focus: Focus,
     show_help: bool,
@@ -140,6 +141,7 @@ impl App {
             theme,
             theme_choice: config.theme.clone(),
             theme_choices,
+            progress_bar_style: config.progress_bar_style,
             config,
             focus: Focus::Pattern,
             show_help: false,
@@ -291,6 +293,7 @@ impl App {
                 };
             }
             Action::CycleTheme => self.cycle_theme(),
+            Action::CycleProgressBarStyle => self.cycle_progress_bar_style(),
             Action::CyclePatternStack => self.pattern_view.cycle_stack(),
             Action::TogglePatternCompact => self.pattern_view.toggle_compact(),
             Action::Up => {
@@ -397,6 +400,19 @@ impl App {
         self.message_scroll = next as u16;
     }
 
+    fn cycle_progress_bar_style(&mut self) {
+        let all = ProgressBarStyle::ALL;
+        let current = all
+            .iter()
+            .position(|s| *s == self.progress_bar_style)
+            .unwrap_or(0);
+        self.progress_bar_style = all[(current + 1) % all.len()];
+        self.notice = Some((
+            format!("progress bar: {}", self.progress_bar_style.name()),
+            Instant::now() + Duration::from_millis(1500),
+        ));
+    }
+
     fn cycle_theme(&mut self) {
         if self.theme_choices.is_empty() {
             return;
@@ -439,7 +455,13 @@ impl App {
                 ])
                 .split(area);
 
-            widgets::header::render(f, rows[0], &self.state, &self.theme);
+            widgets::header::render(
+                f,
+                rows[0],
+                &self.state,
+                &self.theme,
+                self.progress_bar_style,
+            );
 
             let main = if self.focus == Focus::Browser {
                 Layout::default()

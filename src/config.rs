@@ -13,7 +13,74 @@ use std::path::PathBuf;
 pub struct Config {
     pub theme: ThemeChoice,
     pub default_browse_path: Option<PathBuf>,
+    pub progress_bar_style: ProgressBarStyle,
     pub keymap: KeyMap,
+}
+
+/// Visual style for the song progress bar in the header.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ProgressBarStyle {
+    /// `[━━━━▲────]` — single marker over an empty track.
+    Triangle,
+    /// `████▌    ` — solid fill with smooth eighth-block trailing edge.
+    #[default]
+    Blocks,
+    /// `━━━━╸────` — line that swaps from heavy to light at the play head.
+    Line,
+    /// `▰▰▰▰▱▱▱▱` — discrete pip segments.
+    Segments,
+}
+
+impl ProgressBarStyle {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Triangle => "triangle",
+            Self::Blocks => "blocks",
+            Self::Line => "line",
+            Self::Segments => "segments",
+        }
+    }
+
+    pub fn from_name(s: &str) -> Option<Self> {
+        let normalized = s.trim().to_ascii_lowercase();
+        match normalized.as_str() {
+            "triangle" | "tri" => Some(Self::Triangle),
+            "blocks" | "block" => Some(Self::Blocks),
+            "line" => Some(Self::Line),
+            "segments" | "segment" | "segmented" => Some(Self::Segments),
+            _ => None,
+        }
+    }
+
+    /// Every variant in cycle order — used by the `b` keybinding.
+    pub const ALL: &'static [ProgressBarStyle] =
+        &[Self::Triangle, Self::Blocks, Self::Line, Self::Segments];
+}
+
+impl Serialize for ProgressBarStyle {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for ProgressBarStyle {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        Ok(Self::from_name(&raw).unwrap_or_default())
+    }
+}
+
+impl std::str::FromStr for ProgressBarStyle {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_name(s).ok_or_else(|| format!("unknown progress bar style: {s}"))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,6 +205,7 @@ pub struct KeyMap {
     pub help: Vec<String>,
     pub toggle_song_message: Vec<String>,
     pub add_to_playlist: Vec<String>,
+    pub cycle_progress_bar_style: Vec<String>,
 }
 
 impl Default for KeyMap {
@@ -162,6 +230,7 @@ impl Default for KeyMap {
             help: vec!["?".into()],
             toggle_song_message: vec!["m".into()],
             add_to_playlist: vec!["a".into()],
+            cycle_progress_bar_style: vec!["b".into()],
         }
     }
 }
@@ -346,5 +415,54 @@ mod tests {
         assert!(km.add_to_playlist.contains(&"a".to_string()));
         assert!(km.help.contains(&"?".to_string()));
         assert!(km.toggle_song_message.contains(&"m".to_string()));
+        assert!(km.cycle_progress_bar_style.contains(&"b".to_string()));
+    }
+
+    // ── ProgressBarStyle ────────────────────────────────────────────────────
+
+    #[test]
+    fn progress_bar_style_default_is_blocks() {
+        assert_eq!(ProgressBarStyle::default(), ProgressBarStyle::Blocks);
+    }
+
+    #[test]
+    fn progress_bar_style_from_name_recognises_canonical_names() {
+        for &style in ProgressBarStyle::ALL {
+            assert_eq!(
+                ProgressBarStyle::from_name(style.name()),
+                Some(style),
+                "roundtrip failed for {:?}",
+                style
+            );
+        }
+    }
+
+    #[test]
+    fn progress_bar_style_from_name_accepts_aliases() {
+        assert_eq!(
+            ProgressBarStyle::from_name("BLOCK"),
+            Some(ProgressBarStyle::Blocks)
+        );
+        assert_eq!(
+            ProgressBarStyle::from_name("tri"),
+            Some(ProgressBarStyle::Triangle)
+        );
+        assert_eq!(
+            ProgressBarStyle::from_name("segmented"),
+            Some(ProgressBarStyle::Segments)
+        );
+    }
+
+    #[test]
+    fn progress_bar_style_deserializes_from_string_and_falls_back_on_unknown() {
+        #[derive(serde::Deserialize)]
+        struct W {
+            style: ProgressBarStyle,
+        }
+        let w: W = toml::from_str("style = \"line\"").unwrap();
+        assert_eq!(w.style, ProgressBarStyle::Line);
+
+        let w: W = toml::from_str("style = \"made-up\"").unwrap();
+        assert_eq!(w.style, ProgressBarStyle::Blocks); // default fallback
     }
 }
