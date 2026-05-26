@@ -21,6 +21,7 @@ pub enum Action {
     CyclePatternStack,
     TogglePatternCompact,
     Help,
+    ToggleSongMessage,
     AddToPlaylist,
     Up,
     Down,
@@ -59,6 +60,7 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.cycle_pattern_stack, Action::CyclePatternStack),
         (&keymap.toggle_pattern_compact, Action::TogglePatternCompact),
         (&keymap.help, Action::Help),
+        (&keymap.toggle_song_message, Action::ToggleSongMessage),
         (&keymap.add_to_playlist, Action::AddToPlaylist),
     ];
 
@@ -184,6 +186,15 @@ mod tests {
         assert_eq!(
             match_key(&keymap, &key(KeyCode::Char('a'), KeyModifiers::empty())),
             Some(Action::AddToPlaylist)
+        );
+    }
+
+    #[test]
+    fn toggle_song_message_binding_is_wired() {
+        let keymap = KeyMap::default();
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('m'), KeyModifiers::empty())),
+            Some(Action::ToggleSongMessage)
         );
     }
 

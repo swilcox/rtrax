@@ -136,6 +136,7 @@ pub struct KeyMap {
     pub cycle_pattern_stack: Vec<String>,
     pub toggle_pattern_compact: Vec<String>,
     pub help: Vec<String>,
+    pub toggle_song_message: Vec<String>,
     pub add_to_playlist: Vec<String>,
 }
 
@@ -159,6 +160,7 @@ impl Default for KeyMap {
             cycle_pattern_stack: vec!["w".into()],
             toggle_pattern_compact: vec!["c".into()],
             help: vec!["?".into()],
+            toggle_song_message: vec!["m".into()],
             add_to_playlist: vec!["a".into()],
         }
     }
@@ -343,5 +345,6 @@ mod tests {
         assert!(km.play_pause.contains(&"space".to_string()));
         assert!(km.add_to_playlist.contains(&"a".to_string()));
         assert!(km.help.contains(&"?".to_string()));
+        assert!(km.toggle_song_message.contains(&"m".to_string()));
     }
 }
