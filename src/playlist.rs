@@ -73,6 +73,27 @@ impl Playlist {
     }
 }
 
+/// Check whether the playlist file at `playlist_path` already contains `entry`.
+/// Returns `false` if the file does not exist or cannot be read — callers should
+/// treat that as "not a duplicate" and proceed with the append.
+pub fn file_contains(entry: &Path, playlist_path: &Path) -> bool {
+    let Ok(text) = fs::read_to_string(playlist_path) else {
+        return false;
+    };
+    let base = playlist_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .to_path_buf();
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .any(|l| {
+            let p = PathBuf::from(l);
+            let abs = if p.is_absolute() { p } else { base.join(p) };
+            paths_equal(&abs, entry)
+        })
+}
+
 /// Append a single path to a playlist file, creating it (with `#EXTM3U` header)
 /// if it does not yet exist. Also creates parent directories as needed.
 pub fn append_to_file(entry: &Path, playlist_path: &Path) -> Result<()> {
@@ -280,6 +301,45 @@ mod tests {
         );
         assert!(text.contains("/a.mod"));
         assert!(text.contains("/b.mod"));
+    }
+
+    // ── file_contains ───────────────────────────────────────────────────────
+
+    #[test]
+    fn file_contains_returns_false_for_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pl_path = dir.path().join("absent.m3u");
+        assert!(!file_contains(Path::new("/song.mod"), &pl_path));
+    }
+
+    #[test]
+    fn file_contains_detects_absolute_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let pl_path = dir.path().join("list.m3u");
+        fs::write(&pl_path, "#EXTM3U\n/music/song.mod\n").unwrap();
+
+        assert!(file_contains(Path::new("/music/song.mod"), &pl_path));
+        assert!(!file_contains(Path::new("/music/other.mod"), &pl_path));
+    }
+
+    #[test]
+    fn file_contains_resolves_relative_entries_against_playlist_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let pl_path = dir.path().join("list.m3u");
+        fs::write(&pl_path, "song.mod\n").unwrap();
+
+        let abs = dir.path().join("song.mod");
+        assert!(file_contains(&abs, &pl_path));
+    }
+
+    #[test]
+    fn file_contains_skips_comments_and_blank_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let pl_path = dir.path().join("list.m3u");
+        fs::write(&pl_path, "#EXTM3U\n# /commented.mod\n\n/real.mod\n").unwrap();
+
+        assert!(!file_contains(Path::new("/commented.mod"), &pl_path));
+        assert!(file_contains(Path::new("/real.mod"), &pl_path));
     }
 
     #[test]

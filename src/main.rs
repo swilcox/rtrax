@@ -66,7 +66,10 @@ fn main() -> Result<()> {
 
 /// Decide what to play first and what playlist (if any) governs n/p navigation.
 ///
-/// - `--playlist <file>`: load from disk; play the first entry.
+/// - `--playlist <file>` alone: load from disk; play the first entry.
+/// - `--playlist <file>` + positional file(s): load the playlist (it's the
+///   destination for `a` and drives n/p), but start playback on the first
+///   positional file the user passed.
 /// - Two or more positional files: build an in-memory playlist; play the first.
 /// - One positional file: play it directly; no playlist (n/p uses the browser).
 /// - No arguments: no initial file, no playlist (open with the browser).
@@ -76,7 +79,10 @@ fn resolve_sources(
 ) -> Result<(Option<PathBuf>, Option<Playlist>)> {
     if let Some(pl_path) = playlist_path {
         let playlist = Playlist::load(pl_path)?;
-        let initial = playlist.first().cloned();
+        let initial = files
+            .into_iter()
+            .next()
+            .or_else(|| playlist.first().cloned());
         return Ok((initial, Some(playlist)));
     }
     match files.len() {
