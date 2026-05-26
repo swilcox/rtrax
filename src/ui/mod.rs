@@ -332,6 +332,13 @@ impl App {
             tracing::warn!("no playlist path available");
             return;
         };
+        if playlist::file_contains(current, &save_path) {
+            self.notice = Some((
+                "already in playlist".to_string(),
+                Instant::now() + Duration::from_millis(1500),
+            ));
+            return;
+        }
         match playlist::append_to_file(current, &save_path) {
             Ok(()) => {
                 if let Some(ref mut pl) = self.playlist {
