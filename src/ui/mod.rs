@@ -92,6 +92,8 @@ pub struct App {
     focus: Focus,
     show_help: bool,
     show_info: bool,
+    show_message: bool,
+    message_scroll: u16,
     pattern_view: PatternView,
     should_quit: bool,
     volume_millibel: i32,
@@ -142,6 +144,8 @@ impl App {
             focus: Focus::Pattern,
             show_help: false,
             show_info: false,
+            show_message: false,
+            message_scroll: 0,
             pattern_view: PatternView::default(),
             should_quit: false,
             volume_millibel: 0,
@@ -213,11 +217,25 @@ impl App {
             Action::Esc => {
                 if self.show_help {
                     self.show_help = false;
+                } else if self.show_message {
+                    self.show_message = false;
                 } else if self.focus == Focus::Browser {
                     self.focus = Focus::Pattern;
                 }
             }
-            Action::Help => self.show_help = !self.show_help,
+            Action::Help => {
+                self.show_help = !self.show_help;
+                if self.show_help {
+                    self.show_message = false;
+                }
+            }
+            Action::ToggleSongMessage => {
+                self.show_message = !self.show_message;
+                if self.show_message {
+                    self.message_scroll = 0;
+                    self.show_help = false;
+                }
+            }
             Action::ToggleInfo => self.show_info = !self.show_info,
             Action::PlayPause => {
                 let playing = self.state.playing.load(Ordering::Relaxed);
@@ -276,22 +294,30 @@ impl App {
             Action::CyclePatternStack => self.pattern_view.cycle_stack(),
             Action::TogglePatternCompact => self.pattern_view.toggle_compact(),
             Action::Up => {
-                if self.focus == Focus::Browser {
+                if self.show_message {
+                    self.scroll_message(-1);
+                } else if self.focus == Focus::Browser {
                     self.browser.select_delta(-1);
                 }
             }
             Action::Down => {
-                if self.focus == Focus::Browser {
+                if self.show_message {
+                    self.scroll_message(1);
+                } else if self.focus == Focus::Browser {
                     self.browser.select_delta(1);
                 }
             }
             Action::PageUp => {
-                if self.focus == Focus::Browser {
+                if self.show_message {
+                    self.scroll_message(-10);
+                } else if self.focus == Focus::Browser {
                     self.browser.select_delta(-10);
                 }
             }
             Action::PageDown => {
-                if self.focus == Focus::Browser {
+                if self.show_message {
+                    self.scroll_message(10);
+                } else if self.focus == Focus::Browser {
                     self.browser.select_delta(10);
                 }
             }
@@ -350,6 +376,18 @@ impl App {
             }
             Err(err) => tracing::error!(?err, "failed to add to playlist"),
         }
+    }
+
+    fn scroll_message(&mut self, delta: i32) {
+        let max = self
+            .state
+            .song_message
+            .lock()
+            .ok()
+            .map(|g| widgets::message::max_scroll(g.lines().count()))
+            .unwrap_or(0);
+        let next = (self.message_scroll as i32 + delta).clamp(0, max as i32);
+        self.message_scroll = next as u16;
     }
 
     fn cycle_theme(&mut self) {
@@ -470,6 +508,16 @@ impl App {
             };
             let p = Paragraph::new(Line::from(Span::styled(text, style)));
             f.render_widget(p, rows[3]);
+
+            if self.show_message {
+                let message = self
+                    .state
+                    .song_message
+                    .lock()
+                    .map(|g| g.clone())
+                    .unwrap_or_default();
+                widgets::message::render(f, area, &self.theme, &message, self.message_scroll);
+            }
 
             if self.show_help {
                 widgets::help::render(f, area, &self.theme);
