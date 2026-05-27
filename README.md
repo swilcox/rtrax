@@ -123,7 +123,9 @@ you opened a single file), they fall back to the files in the same folder.
 | `/`       | Focus file browser           |
 | `Tab`     | Cycle focus                  |
 | `t`       | Cycle theme                  |
+| `b`       | Cycle progress bar style     |
 | `i`       | Toggle info panel (samples + metadata) |
+| `m`       | Show full song message (scrollable) |
 | `w`       | Cycle pattern stack (1 / 2 / 4 lanes)  |
 | `c`       | Toggle compact cells (drops volume + effect) |
 | `?`       | Help overlay                 |
@@ -166,6 +168,24 @@ Theme files may override any subset of these color keys: `bg`, `fg`, `fg_dim`,
 and `light-magenta`. Pressing `t` cycles built-ins plus any `.toml` files found
 in the themes directory. See [docs/themes.md](docs/themes.md) for the full
 theme reference.
+
+## Progress bar
+
+The header shows a progress bar between the order/pattern stats and the time
+display. Four styles are available:
+
+| Style       | Looks like        | Notes |
+|-------------|-------------------|-------|
+| `triangle`  | `[━━━━▲────]`     | Single marker over an empty track |
+| `blocks`    | `████▌    `       | Smooth fill via eighth-block chars (default) |
+| `line`      | `━━━━╸────`       | Heavy elapsed, light remaining, notch at head |
+| `segments`  | `▰▰▰▰▱▱▱▱`        | Discrete pip segments |
+
+Pick one in config, or press `b` to cycle them at runtime:
+
+```toml
+progress_bar_style = "blocks"
+```
 
 ## Architecture
 

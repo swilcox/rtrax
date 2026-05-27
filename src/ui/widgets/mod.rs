@@ -7,4 +7,5 @@ pub mod message;
 pub mod meters;
 
 pub mod pattern;
+pub mod progress;
 pub mod spectrum;
