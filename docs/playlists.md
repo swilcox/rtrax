@@ -3,20 +3,39 @@
 rtrax uses the standard M3U format — plain text, one file path per line.
 Lines starting with `#` are comments or metadata and are skipped on load.
 
-## Loading a Playlist
+## Two Modes
 
-Pass a `.m3u` file with `--playlist` (`-l`):
+How you launch rtrax decides what the playlist is *for*:
+
+**Queue mode — play a playlist.** Pass a `.m3u` with `--playlist` (`-l`) and
+nothing else:
 
 ```sh
 rtrax --playlist my-favourites.m3u
 ```
 
-Or pass multiple files directly — they become an inline playlist for the
-session without touching any file on disk:
+The left panel becomes the queue: it lists the playlist's tracks, marks the
+now-playing one, `n`/`p` and auto-advance walk it, and `/` then `Enter` on a
+track jumps straight to it.
+
+**Browse mode — build a playlist.** Pass a file or directory *alongside*
+`--playlist`:
+
+```sh
+rtrax --playlist favourites.m3u ~/mods
+```
+
+Now the left panel is the file browser and `n`/`p` walk the folder; the
+playlist is purely the destination for `a`. This is the "audition tracks and
+keep the good ones" workflow.
+
+Passing multiple files (no `--playlist`) makes an inline queue for the session
+without touching disk; passing a single directory just opens the browser there:
 
 ```sh
 rtrax *.xm
 rtrax file1.it file2.s3m file3.xm
+rtrax ~/mods
 ```
 
 ## The Default Playlist
@@ -41,12 +60,14 @@ Otherwise the default playlist is used.
 
 ## Navigation
 
-`n` (next) and `p` (previous) follow this priority:
+`n` (next) and `p` (previous) follow the active mode:
 
-1. The active playlist (loaded via `--playlist` or the inline list from
-   multiple `FILES` arguments).
-2. The other files in the same folder as the currently-playing file, if no
-   playlist is active.
+- **Queue mode:** they walk the playlist (the `--playlist` file, or the inline
+  list from multiple `FILES` arguments).
+- **Browse mode:** they walk the module files in the browsed folder.
+
+In queue mode, `/` focuses the queue panel and `Enter` jumps straight to the
+highlighted track.
 
 ## File Format
 

@@ -8,4 +8,5 @@ pub mod meters;
 
 pub mod pattern;
 pub mod progress;
+pub mod queue;
 pub mod spectrum;
