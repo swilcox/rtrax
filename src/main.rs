@@ -24,6 +24,10 @@ struct Cli {
     #[arg(long, short = 'l', value_name = "FILE")]
     playlist: Option<PathBuf>,
 
+    /// Shuffle play order on startup. Toggle at runtime with `z`.
+    #[arg(long, short = 'z')]
+    shuffle: bool,
+
     /// Override the theme set in config (e.g. neon-blue, c64, mono).
     #[arg(long, value_name = "THEME")]
     theme: Option<ThemeChoice>,
@@ -48,7 +52,7 @@ fn main() -> Result<()> {
         config.theme = theme;
     }
 
-    let launch = resolve_sources(cli.files, cli.playlist)?;
+    let launch = resolve_sources(cli.files, cli.playlist, cli.shuffle)?;
 
     let state = Arc::new(SharedState::new());
     let (fft_tx, fft_rx) = rtrb::RingBuffer::<f32>::new(FFT_RING_CAPACITY);
@@ -80,19 +84,31 @@ fn main() -> Result<()> {
 /// - One positional file → **browse mode**, rooted at its folder, playing it.
 /// - One positional directory → **browse mode**, rooted there, nothing playing.
 /// - No arguments → **browse mode** at the default/working directory.
-fn resolve_sources(files: Vec<PathBuf>, playlist_path: Option<PathBuf>) -> Result<Launch> {
+fn resolve_sources(
+    files: Vec<PathBuf>,
+    playlist_path: Option<PathBuf>,
+    shuffle: bool,
+) -> Result<Launch> {
+    // Apply shuffle to a queue up front so the initial track is the shuffled
+    // head, then read the starting entry back from play order.
+    let queue_launch = |mut queue: Playlist, save_target: Option<PathBuf>| {
+        queue.set_shuffle(shuffle, None);
+        let initial_path = queue.start().cloned();
+        Launch {
+            initial_path,
+            mode: PlayMode::Queue,
+            queue: Some(queue),
+            save_target,
+            browse_root: None,
+            shuffle,
+        }
+    };
+
     if let Some(pl_path) = playlist_path {
         if files.is_empty() {
             // Play the playlist as a queue.
             let queue = Playlist::load(pl_path.clone())?;
-            let initial_path = queue.first().cloned();
-            return Ok(Launch {
-                initial_path,
-                mode: PlayMode::Queue,
-                queue: Some(queue),
-                save_target: Some(pl_path),
-                browse_root: None,
-            });
+            return Ok(queue_launch(queue, Some(pl_path)));
         }
         // Build mode: browse the given path, append to the playlist with `a`.
         let (initial_path, browse_root) = browse_target(files);
@@ -102,6 +118,7 @@ fn resolve_sources(files: Vec<PathBuf>, playlist_path: Option<PathBuf>) -> Resul
             queue: None,
             save_target: Some(pl_path),
             browse_root,
+            shuffle,
         });
     }
 
@@ -112,6 +129,7 @@ fn resolve_sources(files: Vec<PathBuf>, playlist_path: Option<PathBuf>) -> Resul
             queue: None,
             save_target: None,
             browse_root: None,
+            shuffle,
         }),
         1 => {
             let (initial_path, browse_root) = browse_target(files);
@@ -121,19 +139,10 @@ fn resolve_sources(files: Vec<PathBuf>, playlist_path: Option<PathBuf>) -> Resul
                 queue: None,
                 save_target: None,
                 browse_root,
+                shuffle,
             })
         }
-        _ => {
-            let queue = Playlist::from_files(files);
-            let initial_path = queue.first().cloned();
-            Ok(Launch {
-                initial_path,
-                mode: PlayMode::Queue,
-                queue: Some(queue),
-                save_target: None,
-                browse_root: None,
-            })
-        }
+        _ => Ok(queue_launch(Playlist::from_files(files), None)),
     }
 }
 
@@ -190,9 +199,10 @@ mod tests {
         let pl = dir.path().join("list.m3u");
         fs::write(&pl, "#EXTM3U\n/music/a.xm\n/music/b.xm\n").unwrap();
 
-        let launch = resolve_sources(vec![], Some(pl.clone())).unwrap();
+        let launch = resolve_sources(vec![], Some(pl.clone()), false).unwrap();
         assert_eq!(launch.mode, PlayMode::Queue);
         assert!(launch.queue.is_some());
+        assert!(!launch.shuffle);
         assert_eq!(launch.save_target, Some(pl));
         assert_eq!(launch.initial_path, Some(PathBuf::from("/music/a.xm")));
         assert!(launch.browse_root.is_none());
@@ -206,7 +216,7 @@ mod tests {
         let browse = dir.path().join("songs");
         fs::create_dir(&browse).unwrap();
 
-        let launch = resolve_sources(vec![browse.clone()], Some(pl.clone())).unwrap();
+        let launch = resolve_sources(vec![browse.clone()], Some(pl.clone()), false).unwrap();
         assert_eq!(launch.mode, PlayMode::Browse);
         assert!(launch.queue.is_none()); // playlist is not the nav queue here
         assert_eq!(launch.save_target, Some(pl));
@@ -216,7 +226,7 @@ mod tests {
 
     #[test]
     fn single_file_is_browse_mode_rooted_at_its_folder() {
-        let launch = resolve_sources(vec![PathBuf::from("/music/song.xm")], None).unwrap();
+        let launch = resolve_sources(vec![PathBuf::from("/music/song.xm")], None, false).unwrap();
         assert_eq!(launch.mode, PlayMode::Browse);
         assert!(launch.queue.is_none());
         assert!(launch.save_target.is_none());
@@ -227,7 +237,7 @@ mod tests {
     #[test]
     fn single_directory_is_browse_mode_with_no_initial_track() {
         let dir = tempfile::tempdir().unwrap();
-        let launch = resolve_sources(vec![dir.path().to_path_buf()], None).unwrap();
+        let launch = resolve_sources(vec![dir.path().to_path_buf()], None, false).unwrap();
         assert_eq!(launch.mode, PlayMode::Browse);
         assert!(launch.initial_path.is_none());
         assert_eq!(launch.browse_root, Some(dir.path().to_path_buf()));
@@ -235,8 +245,12 @@ mod tests {
 
     #[test]
     fn multiple_files_form_an_inline_queue() {
-        let launch =
-            resolve_sources(vec![PathBuf::from("/a.xm"), PathBuf::from("/b.xm")], None).unwrap();
+        let launch = resolve_sources(
+            vec![PathBuf::from("/a.xm"), PathBuf::from("/b.xm")],
+            None,
+            false,
+        )
+        .unwrap();
         assert_eq!(launch.mode, PlayMode::Queue);
         assert_eq!(launch.queue.as_ref().map(|q| q.len()), Some(2));
         assert!(launch.save_target.is_none());
@@ -245,11 +259,26 @@ mod tests {
 
     #[test]
     fn no_arguments_is_browse_mode() {
-        let launch = resolve_sources(vec![], None).unwrap();
+        let launch = resolve_sources(vec![], None, false).unwrap();
         assert_eq!(launch.mode, PlayMode::Browse);
         assert!(launch.queue.is_none());
         assert!(launch.initial_path.is_none());
         assert!(launch.save_target.is_none());
         assert!(launch.browse_root.is_none());
+    }
+
+    #[test]
+    fn shuffle_flag_marks_the_launch_and_queue() {
+        let launch = resolve_sources(
+            (0..16).map(|i| PathBuf::from(format!("/{i}.xm"))).collect(),
+            None,
+            true,
+        )
+        .unwrap();
+        assert!(launch.shuffle);
+        // The queue should be in shuffled order, and the initial track is its head.
+        let queue = launch.queue.as_ref().unwrap();
+        assert!(queue.is_shuffled());
+        assert_eq!(launch.initial_path.as_ref(), queue.start());
     }
 }

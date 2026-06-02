@@ -69,6 +69,14 @@ Otherwise the default playlist is used.
 In queue mode, `/` focuses the queue panel and `Enter` jumps straight to the
 highlighted track.
 
+## Shuffle
+
+Press `z` (or launch with `--shuffle` / `-z`) to randomize play order. It
+applies to the active collection — the playlist in queue mode, the folder's
+modules in browse mode. Toggling shuffle on keeps the current track playing and
+shuffles the rest; toggling off restores the natural order. A `⤮ shuffle` marker
+appears on the status line and in the panel title while it's active.
+
 ## File Format
 
 A minimal `.m3u` file looks like this:

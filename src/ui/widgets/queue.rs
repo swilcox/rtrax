@@ -18,16 +18,22 @@ fn label_for(path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render(
     f: &mut Frame,
     area: Rect,
     entries: &[PathBuf],
     now_playing: Option<&Path>,
     selected: usize,
+    shuffled: bool,
     theme: &Theme,
     focused: bool,
 ) {
-    let title = format!(" queue · {} tracks ", entries.len());
+    let title = if shuffled {
+        format!(" queue · {} tracks · ⤮ shuffle ", entries.len())
+    } else {
+        format!(" queue · {} tracks ", entries.len())
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if focused {

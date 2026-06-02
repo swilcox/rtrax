@@ -101,6 +101,8 @@ pub struct Launch {
     pub save_target: Option<PathBuf>,
     /// Explicit browser root (e.g. a directory passed on the command line).
     pub browse_root: Option<PathBuf>,
+    /// Start with shuffled play order.
+    pub shuffle: bool,
 }
 
 pub struct App {
@@ -136,6 +138,8 @@ pub struct App {
     playlist: Option<Playlist>,
     /// Cursor into `playlist` for the queue panel (Enter jumps here).
     queue_selected: usize,
+    /// Whether play order is currently shuffled.
+    shuffle: bool,
     /// Where `a` appends. `None` falls back to the default playlist file.
     save_target: Option<PathBuf>,
     /// Transient status-line message and its expiration time.
@@ -156,6 +160,7 @@ impl App {
             queue,
             save_target,
             browse_root: browse_root_hint,
+            shuffle,
         } = launch;
 
         let spectrum = Spectrum::new(crate::audio::FFT_RING_RATE_HZ as f32, 48);
@@ -176,6 +181,13 @@ impl App {
             _ => 0,
         };
 
+        // The queue's shuffle is applied up front (so the initial track is the
+        // shuffled head); here we mirror it onto the browser for browse mode.
+        let mut browser = Browser::new(browse_root);
+        if shuffle {
+            browser.set_shuffle(true);
+        }
+
         let mut theme_choices = Theme::available_choices();
         if !theme_choices.contains(&config.theme) {
             theme_choices.push(config.theme.clone());
@@ -189,7 +201,7 @@ impl App {
             spectrum,
             meter_state: MeterState::new(),
             master_state: MasterMeterState::new(),
-            browser: Browser::new(browse_root),
+            browser,
             theme,
             theme_choice: config.theme.clone(),
             theme_choices,
@@ -208,6 +220,7 @@ impl App {
             mode,
             playlist: queue,
             queue_selected,
+            shuffle,
             save_target,
             notice: None,
         })
@@ -309,6 +322,7 @@ impl App {
                 }
             }
             Action::AddToPlaylist => self.add_to_playlist(),
+            Action::ToggleShuffle => self.toggle_shuffle(),
             Action::SeekForward => self.audio.send(Command::SeekRelative(5.0)),
             Action::SeekBack => self.audio.send(Command::SeekRelative(-5.0)),
             Action::VolumeUp => {
@@ -474,6 +488,30 @@ impl App {
         }
     }
 
+    /// Toggle shuffled play order for whichever collection is active, anchoring
+    /// on the current track so playback continues from where it is.
+    fn toggle_shuffle(&mut self) {
+        self.shuffle = !self.shuffle;
+        let anchor = self.current_path.clone();
+        match self.mode {
+            PlayMode::Queue => {
+                if let Some(pl) = self.playlist.as_mut() {
+                    pl.set_shuffle(self.shuffle, anchor.as_deref());
+                }
+            }
+            PlayMode::Browse => self.browser.set_shuffle(self.shuffle),
+        }
+        let text = if self.shuffle {
+            "shuffle on"
+        } else {
+            "shuffle off"
+        };
+        self.notice = Some((
+            text.to_string(),
+            Instant::now() + Duration::from_millis(1500),
+        ));
+    }
+
     fn add_to_playlist(&mut self) {
         let Some(ref current) = self.current_path.clone() else {
             return;
@@ -498,7 +536,7 @@ impl App {
             Ok(()) => {
                 if let Some(ref mut pl) = self.playlist {
                     if !pl.entries.contains(current) {
-                        pl.entries.push(current.clone());
+                        pl.push(current.clone());
                     }
                 }
                 let display = save_path
@@ -626,6 +664,7 @@ impl App {
                             entries,
                             self.current_path.as_deref(),
                             self.queue_selected,
+                            self.shuffle,
                             &self.theme,
                             true,
                         );
@@ -680,13 +719,16 @@ impl App {
                 .as_ref()
                 .filter(|(_, until)| *until > now)
                 .map(|(text, _)| text.as_str());
-            let hint = match self.mode {
+            let mut hint = String::from(match self.mode {
                 PlayMode::Queue => "[space] play  [n] next  [/] queue  [?] help  [q] quit",
                 PlayMode::Browse => "[space] play  [n] next  [/] browse  [?] help  [q] quit",
-            };
-            let (text, style) = match live_notice {
+            });
+            if self.shuffle {
+                hint.push_str("   ⤮ shuffle");
+            }
+            let (text, style): (&str, Style) = match live_notice {
                 Some(text) => (text, self.theme.accent_style()),
-                None => (hint, Style::default().fg(self.theme.fg_dim)),
+                None => (hint.as_str(), Style::default().fg(self.theme.fg_dim)),
             };
             let p = Paragraph::new(Line::from(Span::styled(text, style)));
             f.render_widget(p, rows[3]);

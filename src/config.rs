@@ -222,6 +222,7 @@ pub struct KeyMap {
     pub help: Vec<String>,
     pub toggle_song_message: Vec<String>,
     pub add_to_playlist: Vec<String>,
+    pub toggle_shuffle: Vec<String>,
     pub cycle_progress_bar_style: Vec<String>,
 }
 
@@ -248,6 +249,7 @@ impl Default for KeyMap {
             help: vec!["?".into()],
             toggle_song_message: vec!["m".into()],
             add_to_playlist: vec!["a".into()],
+            toggle_shuffle: vec!["z".into()],
             cycle_progress_bar_style: vec!["b".into()],
         }
     }

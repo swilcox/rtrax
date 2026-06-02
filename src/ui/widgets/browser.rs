@@ -16,6 +16,12 @@ pub struct Browser {
     pub root: PathBuf,
     pub entries: Vec<Entry>,
     pub state: ListState,
+    /// Play order over the *module* entries (indices into `entries`, skipping
+    /// directories). Natural order when not shuffled. `next_module` /
+    /// `prev_module` step through this.
+    order: Vec<usize>,
+    /// Whether `order` is shuffled. Preserved across directory changes.
+    shuffle: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -31,6 +37,8 @@ impl Browser {
             root,
             entries: Vec::new(),
             state: ListState::default(),
+            order: Vec::new(),
+            shuffle: false,
         };
         b.refresh();
         b.state
@@ -87,6 +95,38 @@ impl Browser {
         files.sort_by_key(|a| a.label.to_lowercase());
         self.entries.extend(dirs);
         self.entries.extend(files);
+        self.rebuild_order();
+    }
+
+    /// Rebuild the module play order from the current entries, honoring the
+    /// shuffle flag. Called after every directory refresh and on toggle.
+    fn rebuild_order(&mut self) {
+        let file_indices: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| !e.is_dir)
+            .map(|(i, _)| i)
+            .collect();
+        self.order = if self.shuffle {
+            let mut rng = crate::rng::Rng::from_clock();
+            crate::rng::permutation(file_indices.len(), &mut rng)
+                .into_iter()
+                .map(|i| file_indices[i])
+                .collect()
+        } else {
+            file_indices
+        };
+    }
+
+    /// Toggle shuffle for folder playback; rebuilds the order in place.
+    pub fn set_shuffle(&mut self, on: bool) {
+        self.shuffle = on;
+        self.rebuild_order();
+    }
+
+    pub fn is_shuffled(&self) -> bool {
+        self.shuffle
     }
 
     pub fn select_delta(&mut self, delta: i32) {
@@ -102,42 +142,38 @@ impl Browser {
         self.state.selected().and_then(|i| self.entries.get(i))
     }
 
-    /// Walk forward in the file list (skipping directories) and return the
-    /// next module path, if any.
+    /// Next module in play order (shuffled or natural), wrapping around the
+    /// folder. Returns `None` only when the folder has no modules.
     pub fn next_module(&mut self, after: Option<&Path>) -> Option<PathBuf> {
-        let start = match after {
-            Some(p) => self.entries.iter().position(|e| !e.is_dir && e.path == p),
-            None => self.state.selected(),
-        };
-        let start = start.unwrap_or(0);
-        let n = self.entries.len();
-        for step in 1..=n {
-            let idx = (start + step) % n;
-            let e = &self.entries[idx];
-            if !e.is_dir {
-                self.state.select(Some(idx));
-                return Some(e.path.clone());
-            }
-        }
-        None
+        self.step_module(after, 1)
     }
 
+    /// Previous module in play order, wrapping around the folder.
     pub fn prev_module(&mut self, before: Option<&Path>) -> Option<PathBuf> {
-        let start = match before {
+        self.step_module(before, -1)
+    }
+
+    /// Step `dir` (+1 / -1) positions through the module play order, anchored on
+    /// `from` (the playing track) or the current selection, and select + return
+    /// the landed module.
+    fn step_module(&mut self, from: Option<&Path>, dir: i32) -> Option<PathBuf> {
+        let len = self.order.len();
+        if len == 0 {
+            return None;
+        }
+        // Where are we in the play order? Prefer the playing track, else the
+        // current selection, else the start.
+        let entry_idx = match from {
             Some(p) => self.entries.iter().position(|e| !e.is_dir && e.path == p),
             None => self.state.selected(),
         };
-        let start = start.unwrap_or(0);
-        let n = self.entries.len();
-        for step in 1..=n {
-            let idx = (start + n - step) % n;
-            let e = &self.entries[idx];
-            if !e.is_dir {
-                self.state.select(Some(idx));
-                return Some(e.path.clone());
-            }
-        }
-        None
+        let pos = entry_idx
+            .and_then(|ei| self.order.iter().position(|&x| x == ei))
+            .unwrap_or(0);
+        let next_pos = (pos as i32 + dir).rem_euclid(len as i32) as usize;
+        let idx = self.order[next_pos];
+        self.state.select(Some(idx));
+        Some(self.entries[idx].path.clone())
     }
 
     /// Activate the current selection. Returns a path if a module was chosen;
@@ -168,7 +204,11 @@ fn is_module(path: &Path) -> bool {
 }
 
 pub fn render(f: &mut Frame, area: Rect, browser: &mut Browser, theme: &Theme, focused: bool) {
-    let title = format!(" browser · {} ", browser.root.display());
+    let title = if browser.is_shuffled() {
+        format!(" browser · {} · ⤮ shuffle ", browser.root.display())
+    } else {
+        format!(" browser · {} ", browser.root.display())
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if focused {
@@ -264,6 +304,8 @@ mod tests {
             root: PathBuf::from("."),
             entries: vec![entry("a.xm", false), entry("b.xm", false)],
             state: ListState::default(),
+            order: vec![0, 1],
+            shuffle: false,
         };
         browser.state.select(Some(0));
 
@@ -284,6 +326,8 @@ mod tests {
                 entry("b.xm", false),
             ],
             state: ListState::default(),
+            order: vec![1, 2],
+            shuffle: false,
         };
 
         assert_eq!(

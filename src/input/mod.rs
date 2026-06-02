@@ -25,6 +25,7 @@ pub enum Action {
     Help,
     ToggleSongMessage,
     AddToPlaylist,
+    ToggleShuffle,
     Up,
     Down,
     PageUp,
@@ -69,6 +70,7 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.help, Action::Help),
         (&keymap.toggle_song_message, Action::ToggleSongMessage),
         (&keymap.add_to_playlist, Action::AddToPlaylist),
+        (&keymap.toggle_shuffle, Action::ToggleShuffle),
     ];
 
     for (binds, action) in pairs {
@@ -211,6 +213,15 @@ mod tests {
         assert_eq!(
             match_key(&keymap, &key(KeyCode::Char('\\'), KeyModifiers::empty())),
             Some(Action::ResetGain)
+        );
+    }
+
+    #[test]
+    fn toggle_shuffle_binding_is_wired() {
+        let keymap = KeyMap::default();
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('z'), KeyModifiers::empty())),
+            Some(Action::ToggleShuffle)
         );
     }
 
