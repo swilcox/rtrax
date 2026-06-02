@@ -70,8 +70,8 @@ rtrax [OPTIONS] [FILES]...
 
 | Option | Description |
 |--------|-------------|
-| `[FILES]...` | One or more module files. Two or more become an inline playlist; `n`/`p` navigate within it. |
-| `-l`, `--playlist <FILE>` | Load an M3U playlist; `n`/`p` navigate within it and `a` saves to it. |
+| `[FILES]...` | Module file(s) or a directory. Two or more files become an inline playlist (queue mode); a single directory opens the browser there. |
+| `-l`, `--playlist <FILE>` | Load an M3U playlist. Alone, it plays as a queue (`n`/`p` walk it, Enter jumps). With a file/directory argument, it becomes the save target for `a` while you browse. |
 | `--theme <THEME>` | Override the theme from config (e.g. `neon-blue`, `c64`, `mono`). |
 | `--no-config` | Skip the config file and use built-in defaults. |
 | `-h`, `--help` | Print help. |
@@ -84,20 +84,36 @@ rtrax [OPTIONS] [FILES]...
 rtrax uses the standard M3U format — plain text, one file path per line,
 lines starting with `#` are comments or metadata and are ignored.
 
-**Loading a playlist:**
+rtrax has two modes, chosen by how you launch it:
+
+**Play a playlist (queue mode)** — `--playlist <file>` on its own:
 
 ```sh
-# Load from a .m3u file; n/p navigate within it.
 rtrax --playlist my-favourites.m3u
-
-# Pass multiple files directly — they become an inline playlist for the session.
-rtrax *.xm
 ```
+
+The left panel becomes the **queue**: it lists the playlist's tracks, marks the
+now-playing one, `n`/`p` and auto-advance walk it, and pressing `/` then `Enter`
+on a track jumps straight to it.
+
+**Build a playlist (browse mode)** — a file or directory *plus* `--playlist`:
+
+```sh
+# Browse ~/mods, audition tracks, press `a` to add keepers to favourites.m3u
+rtrax --playlist favourites.m3u ~/mods
+```
+
+Here the left panel is the **file browser** and `n`/`p` walk the folder. The
+playlist is purely the save target: press `a` to append the currently-playing
+track to it. This is the "listen, and keep the ones you like" workflow.
+
+You can also just browse a directory (`rtrax ~/mods`) or play a loose set of
+files as an inline queue (`rtrax *.xm`).
 
 **Adding songs while playing:**
 
-Press `a` to append the currently-playing file to the active playlist. If no
-playlist is loaded, the song is saved to the default playlist at:
+Press `a` to append the currently-playing file to the playlist. Without a
+`--playlist` target, the song is saved to the default playlist at:
 
 - **Linux:** `~/.local/share/rtrax/playlist.m3u`
 - **macOS:** `~/Library/Application Support/rtrax/playlist.m3u`
@@ -105,23 +121,19 @@ playlist is loaded, the song is saved to the default playlist at:
 The file is created automatically (with an `#EXTM3U` header) if it doesn't
 exist yet. Pressing `a` multiple times is safe — each press appends one entry.
 
-**Navigation priority:**
-
-`n` and `p` check the active playlist first. If no playlist is loaded (e.g.
-you opened a single file), they fall back to the files in the same folder.
-
 ## Keybindings
 
 | Key       | Action                       |
 |-----------|------------------------------|
 | `space`   | Play / pause                 |
 | `s`       | Stop                         |
-| `n` / `p` | Next / previous (playlist, then folder) |
+| `n` / `p` | Next / previous (queue or folder) |
 | `a`       | Add current song to playlist |
 | `←` / `→` | Seek −5 s / +5 s             |
 | `[` / `]` | Gain down / up               |
 | `\`       | Reset gain to unity (0 dB)   |
-| `/`       | Focus file browser           |
+| `/`       | Focus browser / queue        |
+| `Enter`   | Play selection (queue: jump to track) |
 | `Tab`     | Cycle focus                  |
 | `t`       | Cycle theme                  |
 | `b`       | Cycle progress bar style     |

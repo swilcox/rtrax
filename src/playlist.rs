@@ -58,6 +58,21 @@ impl Playlist {
         self.entries.first()
     }
 
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Index of `path` within the playlist, matching the same path-equality
+    /// rules used for navigation.
+    pub fn position(&self, path: &Path) -> Option<usize> {
+        self.entries.iter().position(|e| paths_equal(e, path))
+    }
+
+    /// Entry at `index`, if in range.
+    pub fn get(&self, index: usize) -> Option<&PathBuf> {
+        self.entries.get(index)
+    }
+
     /// Entry immediately after `current` in the list, or `None`.
     pub fn next_after(&self, current: &Path) -> Option<PathBuf> {
         let idx = self.entries.iter().position(|e| paths_equal(e, current))?;

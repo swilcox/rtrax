@@ -77,6 +77,32 @@ enum Focus {
     Browser,
 }
 
+/// Which collection drives playback, decided once at launch from the CLI args.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayMode {
+    /// "Play the playlist": `n`/`p` and auto-advance walk the loaded playlist,
+    /// the left panel shows it as a queue, and Enter jumps to a track.
+    Queue,
+    /// "Build / browse": `n`/`p` and auto-advance walk the browsed directory,
+    /// the left panel is the file browser, and `a` appends to a save target.
+    Browse,
+}
+
+/// Everything `main` resolves from the CLI before constructing the [`App`].
+pub struct Launch {
+    /// Track to start playing, if any.
+    pub initial_path: Option<PathBuf>,
+    /// Playback/navigation mode.
+    pub mode: PlayMode,
+    /// The playlist that drives navigation in [`PlayMode::Queue`]. `None` in
+    /// browse mode.
+    pub queue: Option<Playlist>,
+    /// Where `a` appends tracks. `None` falls back to the default playlist file.
+    pub save_target: Option<PathBuf>,
+    /// Explicit browser root (e.g. a directory passed on the command line).
+    pub browse_root: Option<PathBuf>,
+}
+
 pub struct App {
     state: Arc<SharedState>,
     audio: AudioHandle,
@@ -104,8 +130,14 @@ pub struct App {
     volume_millibel: i32,
     /// Most recent path we asked the audio thread to play.
     current_path: Option<PathBuf>,
-    /// Active playlist for n/p navigation. None means fall back to browser folder.
+    /// Playback/navigation mode (queue vs browse), fixed at launch.
+    mode: PlayMode,
+    /// Active playlist driving n/p navigation in queue mode. `None` in browse mode.
     playlist: Option<Playlist>,
+    /// Cursor into `playlist` for the queue panel (Enter jumps here).
+    queue_selected: usize,
+    /// Where `a` appends. `None` falls back to the default playlist file.
+    save_target: Option<PathBuf>,
     /// Transient status-line message and its expiration time.
     notice: Option<(String, Instant)>,
 }
@@ -116,17 +148,33 @@ impl App {
         audio: AudioHandle,
         fft_rx: Consumer<f32>,
         config: Config,
-        initial_path: Option<PathBuf>,
-        playlist: Option<Playlist>,
+        launch: Launch,
     ) -> Result<Self> {
+        let Launch {
+            initial_path,
+            mode,
+            queue,
+            save_target,
+            browse_root: browse_root_hint,
+        } = launch;
+
         let spectrum = Spectrum::new(crate::audio::FFT_RING_RATE_HZ as f32, 48);
 
-        let browse_root = initial_path
-            .as_ref()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        let browse_root = browse_root_hint
+            .or_else(|| {
+                initial_path
+                    .as_ref()
+                    .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            })
             .or_else(|| config.default_browse_path.clone())
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_else(|| PathBuf::from("."));
+
+        // Start the queue cursor on the initial track if it's in the queue.
+        let queue_selected = match (&queue, &initial_path) {
+            (Some(pl), Some(p)) => pl.position(p).unwrap_or(0),
+            _ => 0,
+        };
 
         let mut theme_choices = Theme::available_choices();
         if !theme_choices.contains(&config.theme) {
@@ -157,7 +205,10 @@ impl App {
             should_quit: false,
             volume_millibel: 0,
             current_path: initial_path,
-            playlist,
+            mode,
+            playlist: queue,
+            queue_selected,
+            save_target,
             notice: None,
         })
     }
@@ -176,15 +227,8 @@ impl App {
 
             // Auto-advance if the song ended.
             if self.state.eof.swap(false, Ordering::Relaxed) {
-                if let Some(path) = self.current_path.clone() {
-                    let next = self
-                        .playlist
-                        .as_ref()
-                        .and_then(|pl| pl.next_after(&path))
-                        .or_else(|| self.browser.next_module(Some(&path)));
-                    if let Some(next) = next {
-                        self.load_path(next);
-                    }
+                if let Some(next) = self.next_track() {
+                    self.load_path(next);
                 }
             }
 
@@ -255,26 +299,12 @@ impl App {
             }
             Action::Stop => self.audio.send(Command::Stop),
             Action::Next => {
-                let cur = self.current_path.clone();
-                let next = cur.as_deref().and_then(|p| {
-                    self.playlist
-                        .as_ref()
-                        .and_then(|pl| pl.next_after(p))
-                        .or_else(|| self.browser.next_module(Some(p)))
-                });
-                if let Some(next) = next {
+                if let Some(next) = self.next_track() {
                     self.load_path(next);
                 }
             }
             Action::Prev => {
-                let cur = self.current_path.clone();
-                let prev = cur.as_deref().and_then(|p| {
-                    self.playlist
-                        .as_ref()
-                        .and_then(|pl| pl.prev_before(p))
-                        .or_else(|| self.browser.prev_module(Some(p)))
-                });
-                if let Some(prev) = prev {
+                if let Some(prev) = self.prev_track() {
                     self.load_path(prev);
                 }
             }
@@ -308,36 +338,33 @@ impl App {
                 if self.show_message {
                     self.scroll_message(-1);
                 } else if self.focus == Focus::Browser {
-                    self.browser.select_delta(-1);
+                    self.left_panel_delta(-1);
                 }
             }
             Action::Down => {
                 if self.show_message {
                     self.scroll_message(1);
                 } else if self.focus == Focus::Browser {
-                    self.browser.select_delta(1);
+                    self.left_panel_delta(1);
                 }
             }
             Action::PageUp => {
                 if self.show_message {
                     self.scroll_message(-10);
                 } else if self.focus == Focus::Browser {
-                    self.browser.select_delta(-10);
+                    self.left_panel_delta(-10);
                 }
             }
             Action::PageDown => {
                 if self.show_message {
                     self.scroll_message(10);
                 } else if self.focus == Focus::Browser {
-                    self.browser.select_delta(10);
+                    self.left_panel_delta(10);
                 }
             }
             Action::Enter => {
                 if self.focus == Focus::Browser {
-                    if let Some(path) = self.browser.activate() {
-                        self.load_path(path);
-                        self.focus = Focus::Pattern;
-                    }
+                    self.activate_left_panel();
                 }
             }
         }
@@ -374,9 +401,69 @@ impl App {
         self.notice = Some((text, Instant::now() + Duration::from_millis(1500)));
     }
 
+    /// Next track to play, per the current mode: the next queue entry in
+    /// [`PlayMode::Queue`], or the next module in the browsed folder in
+    /// [`PlayMode::Browse`].
+    fn next_track(&mut self) -> Option<PathBuf> {
+        let cur = self.current_path.clone();
+        match self.mode {
+            PlayMode::Queue => {
+                let p = cur.as_deref()?;
+                self.playlist.as_ref().and_then(|pl| pl.next_after(p))
+            }
+            PlayMode::Browse => self.browser.next_module(cur.as_deref()),
+        }
+    }
+
+    fn prev_track(&mut self) -> Option<PathBuf> {
+        let cur = self.current_path.clone();
+        match self.mode {
+            PlayMode::Queue => {
+                let p = cur.as_deref()?;
+                self.playlist.as_ref().and_then(|pl| pl.prev_before(p))
+            }
+            PlayMode::Browse => self.browser.prev_module(cur.as_deref()),
+        }
+    }
+
+    /// Move the left panel's selection cursor — the file browser in browse mode,
+    /// the queue cursor in queue mode.
+    fn left_panel_delta(&mut self, delta: i32) {
+        match self.mode {
+            PlayMode::Browse => self.browser.select_delta(delta),
+            PlayMode::Queue => {
+                let Some(n) = self.playlist.as_ref().map(|pl| pl.len()).filter(|n| *n > 0) else {
+                    return;
+                };
+                let cur = self.queue_selected as i32;
+                self.queue_selected = (cur + delta).rem_euclid(n as i32) as usize;
+            }
+        }
+    }
+
+    /// Activate the left panel's current selection: enter a directory / load a
+    /// file in browse mode, or jump to the highlighted queue entry.
+    fn activate_left_panel(&mut self) {
+        let path = match self.mode {
+            PlayMode::Browse => self.browser.activate(),
+            PlayMode::Queue => self
+                .playlist
+                .as_ref()
+                .and_then(|pl| pl.get(self.queue_selected).cloned()),
+        };
+        if let Some(path) = path {
+            self.load_path(path);
+            self.focus = Focus::Pattern;
+        }
+    }
+
     fn load_path(&mut self, path: PathBuf) {
         match crate::audio::load_module(&path) {
             Ok(loaded) => {
+                // Keep the queue cursor tracking the now-playing track.
+                if let Some(idx) = self.playlist.as_ref().and_then(|pl| pl.position(&path)) {
+                    self.queue_selected = idx;
+                }
                 self.current_path = Some(path);
                 crate::audio::publish_loaded_metadata(&self.state, &loaded);
                 self.audio.send(Command::Load(loaded.module));
@@ -392,9 +479,9 @@ impl App {
             return;
         };
         let save_path = self
-            .playlist
-            .as_ref()
-            .and_then(|pl| pl.path.clone())
+            .save_target
+            .clone()
+            .or_else(|| self.playlist.as_ref().and_then(|pl| pl.path.clone()))
             .or_else(playlist::default_path);
         let Some(save_path) = save_path else {
             tracing::warn!("no playlist path available");
@@ -523,7 +610,27 @@ impl App {
             };
 
             if self.focus == Focus::Browser {
-                widgets::browser::render(f, main[0], &mut self.browser, &self.theme, true);
+                match self.mode {
+                    PlayMode::Browse => {
+                        widgets::browser::render(f, main[0], &mut self.browser, &self.theme, true);
+                    }
+                    PlayMode::Queue => {
+                        let entries: &[PathBuf] = self
+                            .playlist
+                            .as_ref()
+                            .map(|pl| pl.entries.as_slice())
+                            .unwrap_or(&[]);
+                        widgets::queue::render(
+                            f,
+                            main[0],
+                            entries,
+                            self.current_path.as_deref(),
+                            self.queue_selected,
+                            &self.theme,
+                            true,
+                        );
+                    }
+                }
             }
             widgets::pattern::render(
                 f,
@@ -573,12 +680,13 @@ impl App {
                 .as_ref()
                 .filter(|(_, until)| *until > now)
                 .map(|(text, _)| text.as_str());
+            let hint = match self.mode {
+                PlayMode::Queue => "[space] play  [n] next  [/] queue  [?] help  [q] quit",
+                PlayMode::Browse => "[space] play  [n] next  [/] browse  [?] help  [q] quit",
+            };
             let (text, style) = match live_notice {
                 Some(text) => (text, self.theme.accent_style()),
-                None => (
-                    "[space] play  [n] next  [/] browse  [?] help  [q] quit",
-                    Style::default().fg(self.theme.fg_dim),
-                ),
+                None => (hint, Style::default().fg(self.theme.fg_dim)),
             };
             let p = Paragraph::new(Line::from(Span::styled(text, style)));
             f.render_widget(p, rows[3]);
