@@ -126,7 +126,7 @@ you opened a single file), they fall back to the files in the same folder.
 | `b`       | Cycle progress bar style     |
 | `i`       | Toggle info panel (samples + metadata) |
 | `m`       | Show full song message (scrollable) |
-| `w`       | Cycle pattern stack (1 / 2 / 4 lanes)  |
+| `w`       | Cycle pattern stack (1 / 2 / 4 lanes); overrides auto-layout |
 | `c`       | Toggle compact cells (drops volume + effect) |
 | `?`       | Help overlay                 |
 | `q`       | Quit                         |
@@ -185,6 +185,20 @@ Pick one in config, or press `b` to cycle them at runtime:
 
 ```toml
 progress_bar_style = "blocks"
+```
+
+## Pattern layout
+
+By default the pattern view sizes itself to the module each time a new song
+loads: a 4-channel MOD shows a single full-width lane, while denser modules fan
+out into 2 or 4 stacked lanes and switch to compact cells so every channel stays
+visible. Pressing `w` or `c` overrides the choice until the next song loads.
+
+Turn the behavior off (and keep whatever `w`/`c` you set) in
+`$XDG_CONFIG_HOME/rtrax/config.toml`:
+
+```toml
+auto_layout = true   # default; set to false to size lanes manually
 ```
 
 ## Architecture

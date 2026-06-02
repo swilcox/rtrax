@@ -8,13 +8,29 @@ use anyhow::Result;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub theme: ThemeChoice,
     pub default_browse_path: Option<PathBuf>,
     pub progress_bar_style: ProgressBarStyle,
+    /// When true, the pattern view auto-picks its lane count + compact mode from
+    /// the channel count each time a new module loads. Manual `w`/`c` overrides
+    /// last until the next load. Defaults to on.
+    pub auto_layout: bool,
     pub keymap: KeyMap,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            theme: ThemeChoice::default(),
+            default_browse_path: None,
+            progress_bar_style: ProgressBarStyle::default(),
+            auto_layout: true,
+            keymap: KeyMap::default(),
+        }
+    }
 }
 
 /// Visual style for the song progress bar in the header.

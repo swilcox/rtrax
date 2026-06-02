@@ -96,6 +96,10 @@ pub struct App {
     show_message: bool,
     message_scroll: u16,
     pattern_view: PatternView,
+    /// Channel count the auto-layout was last applied for, so we only recompute
+    /// when a freshly loaded module actually changes it. `-1` until the first
+    /// module reports its channels.
+    last_layout_channels: i32,
     should_quit: bool,
     volume_millibel: i32,
     /// Most recent path we asked the audio thread to play.
@@ -149,6 +153,7 @@ impl App {
             show_message: false,
             message_scroll: 0,
             pattern_view: PatternView::default(),
+            last_layout_channels: -1,
             should_quit: false,
             volume_millibel: 0,
             current_path: initial_path,
@@ -167,6 +172,7 @@ impl App {
             self.meter_state.step(&self.state);
             self.master_state.step(&self.state);
             self.audio.drain_drops();
+            self.maybe_auto_layout();
 
             // Auto-advance if the song ended.
             if self.state.eof.swap(false, Ordering::Relaxed) {
@@ -332,6 +338,22 @@ impl App {
                     }
                 }
             }
+        }
+    }
+
+    /// When auto-layout is enabled, recompute the pattern view's lane count and
+    /// compact flag whenever a newly loaded module reports a different channel
+    /// count. The audio thread publishes `num_channels` once the module starts,
+    /// so we watch it here rather than at load time. Manual `w`/`c` tweaks the
+    /// user makes between songs survive until the next channel-count change.
+    fn maybe_auto_layout(&mut self) {
+        if !self.config.auto_layout {
+            return;
+        }
+        let n = self.state.num_channels.load(Ordering::Relaxed);
+        if n > 0 && n != self.last_layout_channels {
+            self.last_layout_channels = n;
+            self.pattern_view = PatternView::auto_for_channels(n as usize);
         }
     }
 
