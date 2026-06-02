@@ -283,13 +283,15 @@ impl App {
             Action::SeekBack => self.audio.send(Command::SeekRelative(-5.0)),
             Action::VolumeUp => {
                 self.volume_millibel = (self.volume_millibel + 200).min(1200);
-                self.audio
-                    .send(Command::VolumeMillibel(self.volume_millibel));
+                self.apply_gain();
             }
             Action::VolumeDown => {
                 self.volume_millibel = (self.volume_millibel - 200).max(-4000);
-                self.audio
-                    .send(Command::VolumeMillibel(self.volume_millibel));
+                self.apply_gain();
+            }
+            Action::ResetGain => {
+                self.volume_millibel = 0;
+                self.apply_gain();
             }
             Action::FocusBrowser => self.focus = Focus::Browser,
             Action::CycleFocus => {
@@ -355,6 +357,21 @@ impl App {
             self.last_layout_channels = n;
             self.pattern_view = PatternView::auto_for_channels(n as usize);
         }
+    }
+
+    /// Push the current master gain to the audio thread and flash its value on
+    /// the status line. Unity (0 dB) is libopenmpt's default — call that out so
+    /// the readout isn't ambiguous.
+    fn apply_gain(&mut self) {
+        self.audio
+            .send(Command::VolumeMillibel(self.volume_millibel));
+        let label = format_gain(self.volume_millibel);
+        let text = if self.volume_millibel == 0 {
+            format!("gain {label} (unity)")
+        } else {
+            format!("gain {label}")
+        };
+        self.notice = Some((text, Instant::now() + Duration::from_millis(1500)));
     }
 
     fn load_path(&mut self, path: PathBuf) {
@@ -538,7 +555,13 @@ impl App {
             let band_count = (bottom[0].width as usize).clamp(8, 96);
             self.spectrum.resize_bands(band_count);
             widgets::spectrum::render(f, bottom[0], &self.spectrum, &self.theme);
-            widgets::master::render(f, bottom[1], &self.master_state, &self.theme);
+            widgets::master::render(
+                f,
+                bottom[1],
+                &self.master_state,
+                self.volume_millibel,
+                &self.theme,
+            );
 
             // Status hint, or a transient notice (e.g. theme name on cycle).
             use ratatui::style::Style;
@@ -578,6 +601,17 @@ impl App {
     }
 }
 
+/// Format a master-gain value (millibels; 100 mB = 1 dB) as a signed dB string,
+/// e.g. `0 dB`, `+2 dB`, `-6 dB`. Steps are whole dB so no decimals are shown.
+fn format_gain(millibel: i32) -> String {
+    let db = millibel / 100;
+    if db == 0 {
+        "0 dB".to_string()
+    } else {
+        format!("{db:+} dB")
+    }
+}
+
 fn resolve_theme(choice: &ThemeChoice) -> Theme {
     match Theme::for_choice(choice) {
         Ok(theme) => theme,
@@ -589,5 +623,19 @@ fn resolve_theme(choice: &ThemeChoice) -> Theme {
             );
             Theme::built_in(BuiltInTheme::Default)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_gain;
+
+    #[test]
+    fn format_gain_renders_signed_db() {
+        assert_eq!(format_gain(0), "0 dB");
+        assert_eq!(format_gain(200), "+2 dB");
+        assert_eq!(format_gain(1200), "+12 dB");
+        assert_eq!(format_gain(-600), "-6 dB");
+        assert_eq!(format_gain(-4000), "-40 dB");
     }
 }

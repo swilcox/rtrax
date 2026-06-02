@@ -14,6 +14,7 @@ pub enum Action {
     SeekBack,
     VolumeUp,
     VolumeDown,
+    ResetGain,
     FocusBrowser,
     CycleFocus,
     CycleTheme,
@@ -54,6 +55,7 @@ pub fn match_key(keymap: &KeyMap, ev: &KeyEvent) -> Option<Action> {
         (&keymap.seek_back, Action::SeekBack),
         (&keymap.volume_up, Action::VolumeUp),
         (&keymap.volume_down, Action::VolumeDown),
+        (&keymap.reset_gain, Action::ResetGain),
         (&keymap.focus_browser, Action::FocusBrowser),
         (&keymap.cycle_focus, Action::CycleFocus),
         (&keymap.cycle_theme, Action::CycleTheme),
@@ -200,6 +202,15 @@ mod tests {
         assert_eq!(
             match_key(&keymap, &key(KeyCode::Char('b'), KeyModifiers::empty())),
             Some(Action::CycleProgressBarStyle)
+        );
+    }
+
+    #[test]
+    fn reset_gain_binding_is_wired() {
+        let keymap = KeyMap::default();
+        assert_eq!(
+            match_key(&keymap, &key(KeyCode::Char('\\'), KeyModifiers::empty())),
+            Some(Action::ResetGain)
         );
     }
 
