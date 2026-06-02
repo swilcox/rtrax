@@ -72,6 +72,7 @@ rtrax [OPTIONS] [FILES]...
 |--------|-------------|
 | `[FILES]...` | Module file(s) or a directory. Two or more files become an inline playlist (queue mode); a single directory opens the browser there. |
 | `-l`, `--playlist <FILE>` | Load an M3U playlist. Alone, it plays as a queue (`n`/`p` walk it, Enter jumps). With a file/directory argument, it becomes the save target for `a` while you browse. |
+| `-z`, `--shuffle` | Start with shuffled play order (toggle at runtime with `z`). |
 | `--theme <THEME>` | Override the theme from config (e.g. `neon-blue`, `c64`, `mono`). |
 | `--no-config` | Skip the config file and use built-in defaults. |
 | `-h`, `--help` | Print help. |
@@ -121,6 +122,15 @@ Press `a` to append the currently-playing file to the playlist. Without a
 The file is created automatically (with an `#EXTM3U` header) if it doesn't
 exist yet. Pressing `a` multiple times is safe — each press appends one entry.
 
+## Shuffle
+
+Press `z` to toggle shuffled play order, or start shuffled with `--shuffle`
+(`-z`). Shuffle applies to whatever drives playback: the playlist in queue mode,
+or the folder's modules in browse mode. Toggling on anchors the currently-playing
+track at the head, so playback continues from where it is. When shuffle is
+active, a `⤮ shuffle` marker shows on the status line and in the queue/browser
+panel title.
+
 ## Keybindings
 
 | Key       | Action                       |
@@ -129,6 +139,7 @@ exist yet. Pressing `a` multiple times is safe — each press appends one entry.
 | `s`       | Stop                         |
 | `n` / `p` | Next / previous (queue or folder) |
 | `a`       | Add current song to playlist |
+| `z`       | Toggle shuffle (random order) |
 | `←` / `→` | Seek −5 s / +5 s             |
 | `[` / `]` | Gain down / up               |
 | `\`       | Reset gain to unity (0 dB)   |

@@ -13,15 +13,21 @@ pub struct Playlist {
     pub entries: Vec<PathBuf>,
     /// Backing file path, if this playlist was loaded from or targeted at a file.
     pub path: Option<PathBuf>,
+    /// Play order: a permutation of indices into `entries`. Identity when not
+    /// shuffled; `next_after`/`prev_before` step through this rather than the
+    /// raw entry order.
+    order: Vec<usize>,
 }
 
 impl Playlist {
     /// Build an in-memory playlist from a list of paths (no backing file).
     pub fn from_files(files: Vec<PathBuf>) -> Self {
-        let entries = files.into_iter().map(make_absolute).collect();
+        let entries: Vec<PathBuf> = files.into_iter().map(make_absolute).collect();
+        let order = (0..entries.len()).collect();
         Self {
             entries,
             path: None,
+            order,
         }
     }
 
@@ -43,10 +49,12 @@ impl Playlist {
                     base.join(p)
                 }
             })
-            .collect();
+            .collect::<Vec<PathBuf>>();
+        let order = (0..entries.len()).collect();
         Ok(Self {
             entries,
             path: Some(path),
+            order,
         })
     }
 
@@ -73,18 +81,60 @@ impl Playlist {
         self.entries.get(index)
     }
 
-    /// Entry immediately after `current` in the list, or `None`.
+    /// Entry immediately after `current` in play order, or `None` at the end.
     pub fn next_after(&self, current: &Path) -> Option<PathBuf> {
-        let idx = self.entries.iter().position(|e| paths_equal(e, current))?;
-        self.entries.get(idx + 1).cloned()
+        let pos = self.order_pos(current)?;
+        let entry_idx = *self.order.get(pos + 1)?;
+        self.entries.get(entry_idx).cloned()
     }
 
-    /// Entry immediately before `current` in the list, or `None`.
+    /// Entry immediately before `current` in play order, or `None` at the start.
     pub fn prev_before(&self, current: &Path) -> Option<PathBuf> {
-        let idx = self.entries.iter().position(|e| paths_equal(e, current))?;
-        idx.checked_sub(1)
-            .and_then(|i| self.entries.get(i))
-            .cloned()
+        let pos = self.order_pos(current)?;
+        let entry_idx = *self.order.get(pos.checked_sub(1)?)?;
+        self.entries.get(entry_idx).cloned()
+    }
+
+    /// First entry in play order — the shuffled head when shuffle is on.
+    pub fn start(&self) -> Option<&PathBuf> {
+        self.entries.get(*self.order.first()?)
+    }
+
+    /// Whether play order is currently shuffled (non-identity).
+    pub fn is_shuffled(&self) -> bool {
+        self.order.iter().enumerate().any(|(i, &v)| i != v)
+    }
+
+    /// Append an entry, keeping the play order consistent (the new entry goes
+    /// at the end of the order so it doesn't disturb the current sequence).
+    pub fn push(&mut self, path: PathBuf) {
+        self.order.push(self.entries.len());
+        self.entries.push(path);
+    }
+
+    /// Turn shuffle on or off. When turning on, `anchor` (the currently-playing
+    /// track) is moved to the head so playback continues from it instead of
+    /// jumping. When off, order returns to the natural entry sequence.
+    pub fn set_shuffle(&mut self, on: bool, anchor: Option<&Path>) {
+        let n = self.entries.len();
+        if !on {
+            self.order = (0..n).collect();
+            return;
+        }
+        let mut rng = crate::rng::Rng::from_clock();
+        let mut order = crate::rng::permutation(n, &mut rng);
+        if let Some(anchor_idx) = anchor.and_then(|p| self.position(p)) {
+            if let Some(pos) = order.iter().position(|&x| x == anchor_idx) {
+                order.swap(0, pos);
+            }
+        }
+        self.order = order;
+    }
+
+    /// Position of `current` within the play `order` (not the entry index).
+    fn order_pos(&self, current: &Path) -> Option<usize> {
+        let entry_idx = self.position(current)?;
+        self.order.iter().position(|&x| x == entry_idx)
     }
 }
 
@@ -276,6 +326,61 @@ mod tests {
     fn prev_before_returns_none_when_not_found() {
         let pl = three_entry_playlist();
         assert_eq!(pl.prev_before(Path::new("/not-in-list.mod")), None);
+    }
+
+    #[test]
+    fn shuffle_keeps_all_entries_reachable_in_a_new_order() {
+        let mut pl =
+            Playlist::from_files((0..32).map(|i| PathBuf::from(format!("/{i}.xm"))).collect());
+        pl.set_shuffle(true, None);
+        assert!(pl.is_shuffled());
+
+        // Walking next_after from the shuffled head must visit every entry once.
+        let mut seen = vec![pl.start().unwrap().clone()];
+        while let Some(next) = pl.next_after(seen.last().unwrap()) {
+            seen.push(next);
+        }
+        seen.sort();
+        let mut expected = pl.entries.clone();
+        expected.sort();
+        assert_eq!(seen, expected);
+    }
+
+    #[test]
+    fn shuffle_anchors_on_the_current_track() {
+        let mut pl =
+            Playlist::from_files((0..16).map(|i| PathBuf::from(format!("/{i}.xm"))).collect());
+        let anchor = PathBuf::from("/7.xm");
+        pl.set_shuffle(true, Some(&anchor));
+        // The anchor becomes the head so playback continues from it.
+        assert_eq!(pl.start(), Some(&anchor));
+    }
+
+    #[test]
+    fn unshuffle_restores_sequential_order() {
+        let mut pl = Playlist::from_files(vec![
+            PathBuf::from("/a.xm"),
+            PathBuf::from("/b.xm"),
+            PathBuf::from("/c.xm"),
+        ]);
+        pl.set_shuffle(true, None);
+        pl.set_shuffle(false, None);
+        assert!(!pl.is_shuffled());
+        assert_eq!(
+            pl.next_after(Path::new("/a.xm")),
+            Some(PathBuf::from("/b.xm"))
+        );
+    }
+
+    #[test]
+    fn push_keeps_order_consistent() {
+        let mut pl = Playlist::from_files(vec![PathBuf::from("/a.xm")]);
+        pl.push(PathBuf::from("/b.xm"));
+        assert_eq!(pl.len(), 2);
+        assert_eq!(
+            pl.next_after(Path::new("/a.xm")),
+            Some(PathBuf::from("/b.xm"))
+        );
     }
 
     #[test]

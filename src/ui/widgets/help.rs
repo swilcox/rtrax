@@ -31,6 +31,7 @@ pub fn render(f: &mut Frame, area: Rect, theme: &Theme) {
         line("s", "stop"),
         line("n / p", "next / previous (queue or folder)"),
         line("a", "add current song to playlist"),
+        line("z", "toggle shuffle (random order)"),
         line("← / →", "seek -5s / +5s"),
         line("[ / ]", "gain down / up"),
         line("\\", "reset gain to unity (0 dB)"),
