@@ -119,7 +119,8 @@ you opened a single file), they fall back to the files in the same folder.
 | `n` / `p` | Next / previous (playlist, then folder) |
 | `a`       | Add current song to playlist |
 | `←` / `→` | Seek −5 s / +5 s             |
-| `[` / `]` | Volume down / up             |
+| `[` / `]` | Gain down / up               |
+| `\`       | Reset gain to unity (0 dB)   |
 | `/`       | Focus file browser           |
 | `Tab`     | Cycle focus                  |
 | `t`       | Cycle theme                  |
@@ -132,6 +133,14 @@ you opened a single file), they fall back to the files in the same folder.
 | `q`       | Quit                         |
 
 Override any binding in `$XDG_CONFIG_HOME/rtrax/config.toml`.
+
+## Gain
+
+`[` and `]` adjust the master *gain* — libopenmpt's render mastergain, applied
+to the decoded mix before it reaches the device (your OS volume is separate).
+The default is unity (0 dB, no change); steps are 2 dB, ranging from −40 dB to
++12 dB. The current value flashes on the status line as you change it and is
+always shown in the `master` meter's title. Press `\` to snap back to unity.
 
 ## Themes
 

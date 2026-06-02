@@ -63,11 +63,32 @@ impl MasterMeterState {
     }
 }
 
-pub fn render(f: &mut Frame, area: Rect, meter: &MasterMeterState, theme: &Theme) {
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    meter: &MasterMeterState,
+    gain_millibel: i32,
+    theme: &Theme,
+) {
+    // Gain readout lives in the block title so it's always visible next to the
+    // output bars without stealing a row from them.
+    let db = gain_millibel / 100;
+    let gain_label = if db == 0 {
+        "0 dB".to_string()
+    } else {
+        format!("{db:+} dB")
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.border))
-        .title(Span::styled(" master ", theme.dim_style()));
+        .title(Span::styled(" master ", theme.dim_style()))
+        .title_top(
+            Line::from(Span::styled(
+                format!(" gain {gain_label} "),
+                theme.dim_style(),
+            ))
+            .right_aligned(),
+        );
     let inner = block.inner(area);
     f.render_widget(block, area);
 
