@@ -193,18 +193,33 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /// Build a platform-absolute path from POSIX-style components. A leading
+    /// `/` is absolute on Unix but *not* on Windows (which wants a drive
+    /// prefix), so queue fixtures that flow through `make_absolute` would
+    /// otherwise diverge. On Unix the path is returned unchanged.
+    fn abs_path(posix: &str) -> PathBuf {
+        let rel = posix.trim_start_matches('/');
+        if cfg!(windows) {
+            PathBuf::from(format!("C:\\{}", rel.replace('/', "\\")))
+        } else {
+            PathBuf::from(format!("/{rel}"))
+        }
+    }
+
     #[test]
     fn playlist_alone_plays_as_a_queue() {
         let dir = tempfile::tempdir().unwrap();
         let pl = dir.path().join("list.m3u");
-        fs::write(&pl, "#EXTM3U\n/music/a.xm\n/music/b.xm\n").unwrap();
+        let a = abs_path("/music/a.xm");
+        let b = abs_path("/music/b.xm");
+        fs::write(&pl, format!("#EXTM3U\n{}\n{}\n", a.display(), b.display())).unwrap();
 
         let launch = resolve_sources(vec![], Some(pl.clone()), false).unwrap();
         assert_eq!(launch.mode, PlayMode::Queue);
         assert!(launch.queue.is_some());
         assert!(!launch.shuffle);
         assert_eq!(launch.save_target, Some(pl));
-        assert_eq!(launch.initial_path, Some(PathBuf::from("/music/a.xm")));
+        assert_eq!(launch.initial_path, Some(a));
         assert!(launch.browse_root.is_none());
     }
 
@@ -245,16 +260,12 @@ mod tests {
 
     #[test]
     fn multiple_files_form_an_inline_queue() {
-        let launch = resolve_sources(
-            vec![PathBuf::from("/a.xm"), PathBuf::from("/b.xm")],
-            None,
-            false,
-        )
-        .unwrap();
+        let launch =
+            resolve_sources(vec![abs_path("/a.xm"), abs_path("/b.xm")], None, false).unwrap();
         assert_eq!(launch.mode, PlayMode::Queue);
         assert_eq!(launch.queue.as_ref().map(|q| q.len()), Some(2));
         assert!(launch.save_target.is_none());
-        assert_eq!(launch.initial_path, Some(PathBuf::from("/a.xm")));
+        assert_eq!(launch.initial_path, Some(abs_path("/a.xm")));
     }
 
     #[test]
