@@ -204,11 +204,24 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /// Build a platform-absolute path from POSIX-style components. A leading
+    /// `/` is absolute on Unix but *not* on Windows (which wants a drive
+    /// prefix), so these fixtures would otherwise be treated as relative there.
+    /// On Unix the path is returned unchanged.
+    fn abs_path(posix: &str) -> PathBuf {
+        let rel = posix.trim_start_matches('/');
+        if cfg!(windows) {
+            PathBuf::from(format!("C:\\{}", rel.replace('/', "\\")))
+        } else {
+            PathBuf::from(format!("/{rel}"))
+        }
+    }
+
     // ── from_files ──────────────────────────────────────────────────────────
 
     #[test]
     fn from_files_absolute_stays_absolute() {
-        let abs = PathBuf::from("/tmp/song.mod");
+        let abs = abs_path("/tmp/song.mod");
         let pl = Playlist::from_files(vec![abs.clone()]);
         assert_eq!(pl.entries[0], abs);
         assert!(pl.path.is_none());
@@ -235,16 +248,22 @@ mod tests {
     fn load_skips_comments_and_blank_lines() {
         let dir = tempfile::tempdir().unwrap();
         let pl_path = dir.path().join("list.m3u");
+        let song = abs_path("/abs/song.mod");
+        let other = abs_path("/abs/other.xm");
         fs::write(
             &pl_path,
-            "#EXTM3U\n# a comment\n\n/abs/song.mod\n\n# another\n/abs/other.xm\n",
+            format!(
+                "#EXTM3U\n# a comment\n\n{}\n\n# another\n{}\n",
+                song.display(),
+                other.display()
+            ),
         )
         .unwrap();
 
         let pl = Playlist::load(pl_path).unwrap();
         assert_eq!(pl.entries.len(), 2);
-        assert_eq!(pl.entries[0], PathBuf::from("/abs/song.mod"));
-        assert_eq!(pl.entries[1], PathBuf::from("/abs/other.xm"));
+        assert_eq!(pl.entries[0], song);
+        assert_eq!(pl.entries[1], other);
     }
 
     #[test]
@@ -262,19 +281,20 @@ mod tests {
     fn load_keeps_absolute_paths() {
         let dir = tempfile::tempdir().unwrap();
         let pl_path = dir.path().join("list.m3u");
-        fs::write(&pl_path, "/music/song.mod\n").unwrap();
+        let song = abs_path("/music/song.mod");
+        fs::write(&pl_path, format!("{}\n", song.display())).unwrap();
 
         let pl = Playlist::load(pl_path).unwrap();
-        assert_eq!(pl.entries[0], PathBuf::from("/music/song.mod"));
+        assert_eq!(pl.entries[0], song);
     }
 
     // ── navigation ──────────────────────────────────────────────────────────
 
     fn three_entry_playlist() -> Playlist {
         Playlist::from_files(vec![
-            PathBuf::from("/a.mod"),
-            PathBuf::from("/b.mod"),
-            PathBuf::from("/c.mod"),
+            abs_path("/a.mod"),
+            abs_path("/b.mod"),
+            abs_path("/c.mod"),
         ])
     }
 
@@ -282,11 +302,11 @@ mod tests {
     fn next_after_returns_following_entry() {
         let pl = three_entry_playlist();
         assert_eq!(
-            pl.next_after(Path::new("/a.mod")),
+            pl.next_after(&abs_path("/a.mod")),
             Some(pl.entries[1].clone())
         );
         assert_eq!(
-            pl.next_after(Path::new("/b.mod")),
+            pl.next_after(&abs_path("/b.mod")),
             Some(pl.entries[2].clone())
         );
     }
@@ -307,11 +327,11 @@ mod tests {
     fn prev_before_returns_preceding_entry() {
         let pl = three_entry_playlist();
         assert_eq!(
-            pl.prev_before(Path::new("/b.mod")),
+            pl.prev_before(&abs_path("/b.mod")),
             Some(pl.entries[0].clone())
         );
         assert_eq!(
-            pl.prev_before(Path::new("/c.mod")),
+            pl.prev_before(&abs_path("/c.mod")),
             Some(pl.entries[1].clone())
         );
     }
@@ -348,9 +368,8 @@ mod tests {
 
     #[test]
     fn shuffle_anchors_on_the_current_track() {
-        let mut pl =
-            Playlist::from_files((0..16).map(|i| PathBuf::from(format!("/{i}.xm"))).collect());
-        let anchor = PathBuf::from("/7.xm");
+        let mut pl = Playlist::from_files((0..16).map(|i| abs_path(&format!("/{i}.xm"))).collect());
+        let anchor = abs_path("/7.xm");
         pl.set_shuffle(true, Some(&anchor));
         // The anchor becomes the head so playback continues from it.
         assert_eq!(pl.start(), Some(&anchor));
@@ -359,28 +378,22 @@ mod tests {
     #[test]
     fn unshuffle_restores_sequential_order() {
         let mut pl = Playlist::from_files(vec![
-            PathBuf::from("/a.xm"),
-            PathBuf::from("/b.xm"),
-            PathBuf::from("/c.xm"),
+            abs_path("/a.xm"),
+            abs_path("/b.xm"),
+            abs_path("/c.xm"),
         ]);
         pl.set_shuffle(true, None);
         pl.set_shuffle(false, None);
         assert!(!pl.is_shuffled());
-        assert_eq!(
-            pl.next_after(Path::new("/a.xm")),
-            Some(PathBuf::from("/b.xm"))
-        );
+        assert_eq!(pl.next_after(&abs_path("/a.xm")), Some(abs_path("/b.xm")));
     }
 
     #[test]
     fn push_keeps_order_consistent() {
-        let mut pl = Playlist::from_files(vec![PathBuf::from("/a.xm")]);
-        pl.push(PathBuf::from("/b.xm"));
+        let mut pl = Playlist::from_files(vec![abs_path("/a.xm")]);
+        pl.push(abs_path("/b.xm"));
         assert_eq!(pl.len(), 2);
-        assert_eq!(
-            pl.next_after(Path::new("/a.xm")),
-            Some(PathBuf::from("/b.xm"))
-        );
+        assert_eq!(pl.next_after(&abs_path("/a.xm")), Some(abs_path("/b.xm")));
     }
 
     #[test]
@@ -436,10 +449,11 @@ mod tests {
     fn file_contains_detects_absolute_entry() {
         let dir = tempfile::tempdir().unwrap();
         let pl_path = dir.path().join("list.m3u");
-        fs::write(&pl_path, "#EXTM3U\n/music/song.mod\n").unwrap();
+        let song = abs_path("/music/song.mod");
+        fs::write(&pl_path, format!("#EXTM3U\n{}\n", song.display())).unwrap();
 
-        assert!(file_contains(Path::new("/music/song.mod"), &pl_path));
-        assert!(!file_contains(Path::new("/music/other.mod"), &pl_path));
+        assert!(file_contains(&song, &pl_path));
+        assert!(!file_contains(&abs_path("/music/other.mod"), &pl_path));
     }
 
     #[test]
@@ -456,10 +470,15 @@ mod tests {
     fn file_contains_skips_comments_and_blank_lines() {
         let dir = tempfile::tempdir().unwrap();
         let pl_path = dir.path().join("list.m3u");
-        fs::write(&pl_path, "#EXTM3U\n# /commented.mod\n\n/real.mod\n").unwrap();
+        let real = abs_path("/real.mod");
+        fs::write(
+            &pl_path,
+            format!("#EXTM3U\n# /commented.mod\n\n{}\n", real.display()),
+        )
+        .unwrap();
 
-        assert!(!file_contains(Path::new("/commented.mod"), &pl_path));
-        assert!(file_contains(Path::new("/real.mod"), &pl_path));
+        assert!(!file_contains(&abs_path("/commented.mod"), &pl_path));
+        assert!(file_contains(&real, &pl_path));
     }
 
     #[test]
