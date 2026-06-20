@@ -87,3 +87,31 @@ jobs:
 
       - name: cargo test
         run: cargo test --all-targets
+
+      # ── Windows: build a portable, ready-to-run bundle ───────────────────
+      # Static CRT so the target machine needs no Visual C++ redistributable.
+      - name: Build release bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --bin rtrax
+
+      - name: Stage bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $stage = "rtrax-windows-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item target/release/rtrax.exe $stage/
+          # libopenmpt.dll plus its runtime dependencies (ogg/vorbis/mpg123/
+          # zlib/...) so the exe actually runs, not just links.
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $stage/
+          Copy-Item README.md, LICENSE $stage/
+
+      - name: Upload Windows bundle
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtrax-windows-x64
+          path: rtrax-windows-x64
