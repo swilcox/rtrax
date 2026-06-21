@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows-bundle:
+    name: Windows bundle
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install libopenmpt
+        shell: pwsh
+        run: |
+          # vcpkg is pre-installed on GitHub's Windows runners.
+          vcpkg install libopenmpt:x64-windows
+          $root = "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows"
+          # openmpt-sys's build.rs emits `-lopenmpt`; vcpkg ships libopenmpt.lib.
+          if ((Test-Path "$root/lib/libopenmpt.lib") -and -not (Test-Path "$root/lib/openmpt.lib")) {
+            Copy-Item "$root/lib/libopenmpt.lib" "$root/lib/openmpt.lib"
+          }
+          echo "RTRAX_OPENMPT_LIB_DIR=$root/lib" >> $env:GITHUB_ENV
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Static CRT so the target machine needs no Visual C++ redistributable
+      # for the exe itself; the bundled vcpkg DLLs still need the runtime DLLs,
+      # which are bundled below.
+      - name: Build release (static CRT)
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --bin rtrax
+
+      - name: Stage bundle
+        shell: pwsh
+        run: |
+          $stage = "rtrax-windows-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item target/release/rtrax.exe $stage/
+          # libopenmpt.dll plus its runtime dependencies.
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $stage/
+          # MSVC runtime DLLs the vcpkg DLLs link dynamically — bundle them so
+          # the target machine needs no Visual C++ redistributable at all.
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item "$env:SystemRoot/System32/$dll" $stage/
+          }
+          Copy-Item README.md, LICENSE $stage/
+          Compress-Archive -Path "$stage/*" -DestinationPath "rtrax-windows-x64.zip"
+
+      - name: Attach bundle to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rtrax-windows-x64.zip

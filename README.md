@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Made with Rust](https://img.shields.io/badge/made_with-rust-CE412B?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Edition 2021](https://img.shields.io/badge/edition-2021-blue.svg)](https://doc.rust-lang.org/edition-guide/rust-2021/index.html)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#install)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install)
 [![Type: TUI](https://img.shields.io/badge/type-TUI-9cf.svg)](https://github.com/ratatui-org/ratatui)
 [![Audio: libopenmpt](https://img.shields.io/badge/audio-libopenmpt-purple.svg)](https://lib.openmpt.org/libopenmpt/)
 [![Latest release](https://img.shields.io/github/v/release/swilcox/rtrax?sort=semver&display_name=tag)](https://github.com/swilcox/rtrax/releases/latest)
@@ -15,7 +15,7 @@
 
 A TUI module player for `.mod` / `.xm` / `.it` / `.s3m` / `.mtm` (and anything
 else libopenmpt reads). Per-channel level meters, scrolling pattern view,
-master spectrum analyzer, file browser. macOS + Linux.
+master spectrum analyzer, file browser. macOS, Linux, and Windows.
 
 ![rtrax screenshot](docs/screenshot.png)
 
@@ -24,7 +24,26 @@ master spectrum analyzer, file browser. macOS + Linux.
 
 ## Install
 
-System library — libopenmpt is a runtime dependency, not vendored.
+### Windows (prebuilt bundle)
+
+No toolchain needed. A self-contained bundle is attached to every
+[release](https://github.com/swilcox/rtrax/releases/latest) under **Assets** as
+`rtrax-windows-x64.zip`:
+
+1. Download `rtrax-windows-x64.zip` from the latest release and unzip it.
+2. Keep `rtrax.exe` and the bundled `.dll` files together in one folder.
+3. Run `rtrax.exe` — pass a module path (`rtrax.exe song.xm`) or launch with no
+   argument to open the file browser.
+
+The zip ships libopenmpt, its audio dependencies, and the MSVC runtime DLLs, so
+**nothing else needs installing** — no Visual C++ redistributable required. For
+the best rendering (truecolor, Unicode box-drawing), run it from
+[Windows Terminal](https://aka.ms/terminal). If SmartScreen warns about an
+unsigned binary, choose **More info → Run anyway**.
+
+### macOS / Linux (build from source)
+
+libopenmpt is a runtime dependency, installed as a system library:
 
 ```sh
 # macOS
@@ -118,6 +137,7 @@ Press `a` to append the currently-playing file to the playlist. Without a
 
 - **Linux:** `~/.local/share/rtrax/playlist.m3u`
 - **macOS:** `~/Library/Application Support/rtrax/playlist.m3u`
+- **Windows:** `%LOCALAPPDATA%\rtrax\playlist.m3u`
 
 The file is created automatically (with an `#EXTM3U` header) if it doesn't
 exist yet. Pressing `a` multiple times is safe — each press appends one entry.
@@ -253,4 +273,3 @@ stdout, because that would corrupt ratatui's alternate-screen rendering.
 - Network features, streaming protocols, web UI.
 - Format conversion (libopenmpt is read-only here).
 - Plugin systems, scripting, custom DSP effects.
-- Windows support — not blocked, but not a v1 goal.
