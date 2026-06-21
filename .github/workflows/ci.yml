@@ -107,6 +107,12 @@ jobs:
           # libopenmpt.dll plus its runtime dependencies (ogg/vorbis/mpg123/
           # zlib/...) so the exe actually runs, not just links.
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $stage/
+          # The vcpkg DLLs link the *dynamic* MSVC runtime (rtrax.exe itself is
+          # static-CRT). Bundle the redistributable runtime DLLs so the target
+          # machine needs no Visual C++ redistributable installed at all.
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item "$env:SystemRoot/System32/$dll" $stage/
+          }
           Copy-Item README.md, LICENSE $stage/
 
       - name: Upload Windows bundle
