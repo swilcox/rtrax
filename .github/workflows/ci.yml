@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +58,23 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install libopenmpt pkg-config
 
+      - name: Install libopenmpt (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # vcpkg is pre-installed on GitHub's Windows runners.
+          vcpkg install libopenmpt:x64-windows
+          $root = "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows"
+          # openmpt-sys's build.rs emits `-lopenmpt`, so MSVC looks for
+          # `openmpt.lib`; vcpkg ships it as `libopenmpt.lib`. Alias it.
+          if ((Test-Path "$root/lib/libopenmpt.lib") -and -not (Test-Path "$root/lib/openmpt.lib")) {
+            Copy-Item "$root/lib/libopenmpt.lib" "$root/lib/openmpt.lib"
+          }
+          # build.rs honours this and skips pkg-config (absent on Windows).
+          echo "RTRAX_OPENMPT_LIB_DIR=$root/lib" >> $env:GITHUB_ENV
+          # Put the DLL on PATH so test binaries can load it at runtime.
+          echo "$root/bin" >> $env:GITHUB_PATH
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -70,3 +87,37 @@ jobs:
 
       - name: cargo test
         run: cargo test --all-targets
+
+      # ── Windows: build a portable, ready-to-run bundle ───────────────────
+      # Static CRT so the target machine needs no Visual C++ redistributable.
+      - name: Build release bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --bin rtrax
+
+      - name: Stage bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $stage = "rtrax-windows-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item target/release/rtrax.exe $stage/
+          # libopenmpt.dll plus its runtime dependencies (ogg/vorbis/mpg123/
+          # zlib/...) so the exe actually runs, not just links.
+          Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $stage/
+          # The vcpkg DLLs link the *dynamic* MSVC runtime (rtrax.exe itself is
+          # static-CRT). Bundle the redistributable runtime DLLs so the target
+          # machine needs no Visual C++ redistributable installed at all.
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item "$env:SystemRoot/System32/$dll" $stage/
+          }
+          Copy-Item README.md, LICENSE $stage/
+
+      - name: Upload Windows bundle
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtrax-windows-x64
+          path: rtrax-windows-x64
