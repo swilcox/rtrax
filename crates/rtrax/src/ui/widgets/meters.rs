@@ -1,13 +1,13 @@
 //! Per-channel level meters. Reads VU atomics; applies attack/decay envelope
 //! in the UI thread. Peak-hold marker with a slow fall.
 
-use crate::state::SharedState;
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use rtrax_core::state::SharedState;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 

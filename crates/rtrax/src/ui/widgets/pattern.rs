@@ -7,14 +7,14 @@
 //! gets channels 0..K, lane 1 gets K..2K, etc. The same pattern rows appear
 //! in every lane so the eye reads them as time-aligned bands.
 
-use crate::state::pattern::PatternWindow;
-use crate::state::SharedState;
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use rtrax_core::state::pattern::PatternWindow;
+use rtrax_core::state::SharedState;
 use std::sync::atomic::Ordering;
 
 /// User-controlled pattern view settings.

@@ -1,12 +1,12 @@
 //! Master spectrum analyzer bar row.
 
-use crate::ui::fft::Spectrum;
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use rtrax_core::fft::Spectrum;
 
 const BAR_BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 

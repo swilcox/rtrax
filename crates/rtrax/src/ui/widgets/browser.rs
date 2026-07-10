@@ -109,8 +109,8 @@ impl Browser {
             .map(|(i, _)| i)
             .collect();
         self.order = if self.shuffle {
-            let mut rng = crate::rng::Rng::from_clock();
-            crate::rng::permutation(file_indices.len(), &mut rng)
+            let mut rng = rtrax_core::rng::Rng::from_clock();
+            rtrax_core::rng::permutation(file_indices.len(), &mut rng)
                 .into_iter()
                 .map(|i| file_indices[i])
                 .collect()

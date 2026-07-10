@@ -28,9 +28,17 @@ calls libopenmpt VU getters for per-channel meters, and renders a ratatui frame.
 ## Conventions
 
 - Edition 2021, `cargo fmt` clean, `cargo clippy -- -D warnings` clean.
-- Module layout: `src/audio/` (cpal + decoder), `src/ui/` (ratatui widgets +
-  render loop), `src/input/` (key dispatch), `src/state/` (shared atomics +
-  ring buffer types), `src/main.rs` (wiring).
+- Cargo workspace with two crates:
+  - `crates/rtrax-core` — frontend-agnostic engine: `audio/` (cpal + decoder),
+    `state/` (shared atomics + ring buffer types), `fft.rs` (spectrum
+    analysis), `playlist.rs`, `launch.rs` (startup resolution), `rng.rs`.
+    No UI dependencies; any frontend consumes it by polling `SharedState`,
+    draining the FFT ring, and sending `audio::command::Command`.
+  - `crates/rtrax` — the TUI binary: `ui/` (ratatui widgets + render loop),
+    `input/` (key dispatch), `config.rs` (TUI config: keymap, themes),
+    `main.rs` (wiring).
+  New frontends (e.g. a GUI) get their own crate beside `crates/rtrax` and
+  depend only on `rtrax-core`. Core code must never import a UI toolkit.
 - No `unsafe` outside of FFI wrappers (the `openmpt` crate already wraps these).
 - Errors: `anyhow::Result` at app boundaries, `thiserror` for library-shaped
   modules if/when we extract them. Don't sprinkle `.unwrap()` outside `main`.

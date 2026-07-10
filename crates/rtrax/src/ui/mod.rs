@@ -1,17 +1,11 @@
 //! TUI shell. Owns the terminal, runs the event loop at ~30fps, dispatches
 //! input actions, and renders the composed widget tree each frame.
 
-pub mod fft;
 pub mod theme;
 pub mod widgets;
 
-use crate::audio::command::Command;
-use crate::audio::AudioHandle;
 use crate::config::{BuiltInTheme, Config, ProgressBarStyle, ThemeChoice};
 use crate::input::{match_key, Action};
-use crate::playlist::{self, Playlist};
-use crate::state::SharedState;
-use crate::ui::fft::Spectrum;
 use crate::ui::theme::Theme;
 use crate::ui::widgets::browser::Browser;
 use crate::ui::widgets::master::MasterMeterState;
@@ -26,6 +20,12 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::Terminal;
+use rtrax_core::audio::command::Command;
+use rtrax_core::audio::AudioHandle;
+use rtrax_core::fft::Spectrum;
+use rtrax_core::launch::{Launch, PlayMode};
+use rtrax_core::playlist::{self, Playlist};
+use rtrax_core::state::SharedState;
 use rtrb::Consumer;
 use std::io::{stdout, Stdout};
 use std::path::PathBuf;
@@ -75,34 +75,6 @@ pub fn restore_terminal_for_panic() {
 enum Focus {
     Pattern,
     Browser,
-}
-
-/// Which collection drives playback, decided once at launch from the CLI args.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PlayMode {
-    /// "Play the playlist": `n`/`p` and auto-advance walk the loaded playlist,
-    /// the left panel shows it as a queue, and Enter jumps to a track.
-    Queue,
-    /// "Build / browse": `n`/`p` and auto-advance walk the browsed directory,
-    /// the left panel is the file browser, and `a` appends to a save target.
-    Browse,
-}
-
-/// Everything `main` resolves from the CLI before constructing the [`App`].
-pub struct Launch {
-    /// Track to start playing, if any.
-    pub initial_path: Option<PathBuf>,
-    /// Playback/navigation mode.
-    pub mode: PlayMode,
-    /// The playlist that drives navigation in [`PlayMode::Queue`]. `None` in
-    /// browse mode.
-    pub queue: Option<Playlist>,
-    /// Where `a` appends tracks. `None` falls back to the default playlist file.
-    pub save_target: Option<PathBuf>,
-    /// Explicit browser root (e.g. a directory passed on the command line).
-    pub browse_root: Option<PathBuf>,
-    /// Start with shuffled play order.
-    pub shuffle: bool,
 }
 
 pub struct App {
@@ -163,7 +135,7 @@ impl App {
             shuffle,
         } = launch;
 
-        let spectrum = Spectrum::new(crate::audio::FFT_RING_RATE_HZ as f32, 48);
+        let spectrum = Spectrum::new(rtrax_core::audio::FFT_RING_RATE_HZ as f32, 48);
 
         let browse_root = browse_root_hint
             .or_else(|| {
@@ -472,14 +444,14 @@ impl App {
     }
 
     fn load_path(&mut self, path: PathBuf) {
-        match crate::audio::load_module(&path) {
+        match rtrax_core::audio::load_module(&path) {
             Ok(loaded) => {
                 // Keep the queue cursor tracking the now-playing track.
                 if let Some(idx) = self.playlist.as_ref().and_then(|pl| pl.position(&path)) {
                     self.queue_selected = idx;
                 }
                 self.current_path = Some(path);
-                crate::audio::publish_loaded_metadata(&self.state, &loaded);
+                rtrax_core::audio::publish_loaded_metadata(&self.state, &loaded);
                 self.audio.send(Command::Load(loaded.module));
             }
             Err(err) => {

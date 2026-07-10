@@ -3,13 +3,13 @@
 //! the same decay + peak-hold envelope used by the per-channel meters, and
 //! renders two horizontal bars.
 
-use crate::state::SharedState;
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use rtrax_core::state::SharedState;
 use std::time::Instant;
 
 const BAR_BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];

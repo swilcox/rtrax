@@ -1232,21 +1232,32 @@ version = "0.8.0"
 dependencies = [
  "anyhow",
  "clap",
- "cpal",
- "crossbeam-channel",
  "crossterm",
  "dirs",
- "openmpt",
  "ratatui",
+ "rtrax-core",
  "rtrb",
- "rustfft",
  "serde",
  "tempfile",
  "toml",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "walkdir",
+]
+
+[[package]]
+name = "rtrax-core"
+version = "0.8.0"
+dependencies = [
+ "anyhow",
+ "cpal",
+ "crossbeam-channel",
+ "dirs",
+ "openmpt",
+ "rtrb",
+ "rustfft",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
