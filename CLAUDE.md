@@ -32,7 +32,8 @@ calls libopenmpt VU getters for per-channel meters, and renders a ratatui frame.
 - Cargo workspace with two crates:
   - `crates/rtrax-core` — frontend-agnostic engine: `audio/` (cpal + decoder),
     `state/` (shared atomics + ring buffer types), `fft.rs` (spectrum
-    analysis), `playlist.rs`, `launch.rs` (startup resolution), `rng.rs`.
+    analysis), `playlist.rs`, `launch.rs` (startup resolution), `files.rs`
+    (module-file discovery), `meters.rs` (level-meter envelopes), `rng.rs`.
     No UI dependencies; any frontend consumes it by polling `SharedState`,
     draining the FFT ring, and sending `audio::command::Command`.
   - `crates/rtrax` — the TUI binary: `ui/` (ratatui widgets + render loop),

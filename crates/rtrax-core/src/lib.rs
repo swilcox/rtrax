@@ -8,7 +8,9 @@
 
 pub mod audio;
 pub mod fft;
+pub mod files;
 pub mod launch;
+pub mod meters;
 pub mod playlist;
 pub mod rng;
 pub mod state;

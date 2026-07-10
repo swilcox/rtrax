@@ -1,7 +1,5 @@
-//! Master L/R output meter. Reads post-mix peak from `SharedState` (computed
-//! in the audio callback over the actual interleaved output buffer), applies
-//! the same decay + peak-hold envelope used by the per-channel meters, and
-//! renders two horizontal bars.
+//! Master L/R output meter. Renders the smoothed post-mix peaks from
+//! `rtrax_core::meters::MasterMeter` as two horizontal bars.
 
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
@@ -9,67 +7,11 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-use rtrax_core::state::SharedState;
-use std::time::Instant;
+use rtrax_core::meters::{Envelope, MasterMeter};
 
 const BAR_BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-const DECAY_PER_FRAME: f32 = 0.06; // slower than per-channel — more like a VU
-const PEAK_HOLD_SECS: f32 = 1.5;
-const PEAK_FALL_PER_FRAME: f32 = 0.02;
 
-#[derive(Default, Clone, Copy)]
-struct Envelope {
-    smoothed: f32,
-    peak: f32,
-    peak_set_at: Option<Instant>,
-}
-
-impl Envelope {
-    fn step(&mut self, v: f32, now: Instant) {
-        let v = v.clamp(0.0, 1.0);
-        let s = if v >= self.smoothed {
-            v
-        } else {
-            (self.smoothed - DECAY_PER_FRAME).max(v)
-        };
-        self.smoothed = s;
-        if s >= self.peak {
-            self.peak = s;
-            self.peak_set_at = Some(now);
-        } else if let Some(t) = self.peak_set_at {
-            if now.duration_since(t).as_secs_f32() > PEAK_HOLD_SECS {
-                self.peak = (self.peak - PEAK_FALL_PER_FRAME).max(s);
-            }
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct MasterMeterState {
-    left: Envelope,
-    right: Envelope,
-}
-
-impl MasterMeterState {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn step(&mut self, state: &SharedState) {
-        let (l, r) = state.master_peak();
-        let now = Instant::now();
-        self.left.step(l, now);
-        self.right.step(r, now);
-    }
-}
-
-pub fn render(
-    f: &mut Frame,
-    area: Rect,
-    meter: &MasterMeterState,
-    gain_millibel: i32,
-    theme: &Theme,
-) {
+pub fn render(f: &mut Frame, area: Rect, meter: &MasterMeter, gain_millibel: i32, theme: &Theme) {
     // Gain readout lives in the block title so it's always visible next to the
     // output bars without stealing a row from them.
     let db = gain_millibel / 100;

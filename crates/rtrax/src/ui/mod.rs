@@ -8,8 +8,6 @@ use crate::config::{BuiltInTheme, Config, ProgressBarStyle, ThemeChoice};
 use crate::input::{match_key, Action};
 use crate::ui::theme::Theme;
 use crate::ui::widgets::browser::Browser;
-use crate::ui::widgets::master::MasterMeterState;
-use crate::ui::widgets::meters::MeterState;
 use crate::ui::widgets::pattern::PatternView;
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyEventKind};
@@ -24,6 +22,7 @@ use rtrax_core::audio::command::Command;
 use rtrax_core::audio::AudioHandle;
 use rtrax_core::fft::Spectrum;
 use rtrax_core::launch::{Launch, PlayMode};
+use rtrax_core::meters::{ChannelMeters, MasterMeter};
 use rtrax_core::playlist::{self, Playlist};
 use rtrax_core::state::SharedState;
 use rtrb::Consumer;
@@ -82,8 +81,8 @@ pub struct App {
     audio: AudioHandle,
     fft_rx: Consumer<f32>,
     spectrum: Spectrum,
-    meter_state: MeterState,
-    master_state: MasterMeterState,
+    meter_state: ChannelMeters,
+    master_state: MasterMeter,
     browser: Browser,
     theme: Theme,
     theme_choice: ThemeChoice,
@@ -171,8 +170,8 @@ impl App {
             audio,
             fft_rx,
             spectrum,
-            meter_state: MeterState::new(),
-            master_state: MasterMeterState::new(),
+            meter_state: ChannelMeters::new(),
+            master_state: MasterMeter::new(),
             browser,
             theme,
             theme_choice: config.theme.clone(),

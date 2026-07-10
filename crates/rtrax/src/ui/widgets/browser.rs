@@ -7,10 +7,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::Frame;
-use std::ffi::OsStr;
+use rtrax_core::files::is_module;
 use std::path::{Path, PathBuf};
-
-const MODULE_EXTS: &[&str] = &["mod", "xm", "it", "s3m", "mtm", "mptm", "stm", "ult"];
 
 pub struct Browser {
     pub root: PathBuf,
@@ -195,14 +193,6 @@ impl Browser {
     }
 }
 
-fn is_module(path: &Path) -> bool {
-    let Some(ext) = path.extension().and_then(OsStr::to_str) else {
-        return false;
-    };
-    let ext = ext.to_ascii_lowercase();
-    MODULE_EXTS.contains(&ext.as_str())
-}
-
 pub fn render(f: &mut Frame, area: Rect, browser: &mut Browser, theme: &Theme, focused: bool) {
     let title = if browser.is_shuffled() {
         format!(" browser · {} · ⤮ shuffle ", browser.root.display())
@@ -266,14 +256,6 @@ mod tests {
             is_dir,
             label: label.to_string(),
         }
-    }
-
-    #[test]
-    fn module_extension_matching_is_case_insensitive() {
-        assert!(is_module(Path::new("song.XM")));
-        assert!(is_module(Path::new("song.mod")));
-        assert!(!is_module(Path::new("song.txt")));
-        assert!(!is_module(Path::new("song")));
     }
 
     #[test]
