@@ -1,0 +1,15 @@
+[package]
+name = "rtrax-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native GUI MOD/XM/IT/S3M/MTM module player"
+
+[dependencies]
+rtrax-core = { workspace = true }
+eframe = { workspace = true }
+rtrb = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

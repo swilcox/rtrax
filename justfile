@@ -21,6 +21,10 @@ test:
 play *ARGS:
     cargo run --release --bin rtrax -- {{ ARGS }}
 
+# The native GUI frontend (egui), e.g. `just gui song.xm`
+gui *ARGS:
+    cargo run --release --bin rtrax-gui -- {{ ARGS }}
+
 # Headless playback smoke test (no TUI), e.g. `just play-headless song.xm`
 play-headless FILE:
     cargo run --release -p rtrax-core --example play -- {{ FILE }}

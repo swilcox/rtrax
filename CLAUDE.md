@@ -12,6 +12,7 @@ See `PLAN.md` for the full architecture, phasing, and known gotchas.
   `brew install libopenmpt` on macOS, `apt install libopenmpt-dev` on Debian/Ubuntu.
 - **Audio output**: `cpal` — direct callback-driven stream, cross-platform.
 - **TUI**: `ratatui` + `crossterm` backend.
+- **GUI**: `eframe`/`egui` (immediate mode, wgpu/glow-backed).
 - **FFT**: `rustfft` for the master spectrum analyzer.
 - **Audio↔UI handoff**: `rtrb` (lock-free SPSC ring buffer).
 - **Input/events**: `crossterm` event loop, dispatched via `crossbeam-channel`.
@@ -37,8 +38,10 @@ calls libopenmpt VU getters for per-channel meters, and renders a ratatui frame.
   - `crates/rtrax` — the TUI binary: `ui/` (ratatui widgets + render loop),
     `input/` (key dispatch), `config.rs` (TUI config: keymap, themes),
     `main.rs` (wiring).
-  New frontends (e.g. a GUI) get their own crate beside `crates/rtrax` and
-  depend only on `rtrax-core`. Core code must never import a UI toolkit.
+  - `crates/rtrax-gui` — the native GUI binary (egui/eframe). Same poll-based
+    frontend contract as the TUI.
+  New frontends get their own crate beside these and depend only on
+  `rtrax-core`. Core code must never import a UI toolkit.
 - No `unsafe` outside of FFI wrappers (the `openmpt` crate already wraps these).
 - Errors: `anyhow::Result` at app boundaries, `thiserror` for library-shaped
   modules if/when we extract them. Don't sprinkle `.unwrap()` outside `main`.
