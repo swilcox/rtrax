@@ -45,6 +45,15 @@ calls libopenmpt VU getters for per-channel meters, and renders a ratatui frame.
 
 ## Build & run
 
+Common actions are in the `justfile` (`just --list` to see them):
+
+```
+just play <file.xm>           # run the TUI, always release-mode
+just check                    # fmt --check + clippy + test, exactly what CI runs
+```
+
+Or with cargo directly:
+
 ```
 cargo run --release           # release-mode is meaningful — FFT + decode are hot
 cargo run --release -- <file.xm>
