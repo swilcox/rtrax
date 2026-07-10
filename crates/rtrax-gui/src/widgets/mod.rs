@@ -2,6 +2,7 @@
 //! relevant slice of engine state; none of them mutate the engine directly —
 //! interactions are returned to the app as values.
 
+pub mod icons;
 pub mod meters;
 pub mod pattern;
 pub mod queue;

@@ -4,6 +4,7 @@
 //! audio engine, and hand everything to [`app::GuiApp`].
 
 mod app;
+mod media;
 mod theme;
 mod widgets;
 
@@ -71,6 +72,7 @@ fn main() -> Result<()> {
         options,
         Box::new(move |cc| {
             app::apply_theme(&cc.egui_ctx);
+            gui.init_media(cc.egui_ctx.clone());
             Ok(Box::new(gui))
         }),
     )

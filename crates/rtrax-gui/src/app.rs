@@ -2,8 +2,10 @@
 //! keyboard shortcuts. Same frontend contract as the TUI — poll `SharedState`
 //! per frame, drain the FFT ring, send `Command`s.
 
+use crate::media::Media;
 use crate::theme;
 use crate::widgets;
+use crate::widgets::icons::{icon_button, Icon};
 use eframe::egui::{self, CornerRadius, Key, Pos2, Rect, RichText, Sense};
 use rtrax_core::audio::command::Command;
 use rtrax_core::audio::{self, AudioHandle, FFT_RING_RATE_HZ};
@@ -36,6 +38,8 @@ pub struct GuiApp {
     notice: Option<String>,
     /// Last title pushed to the OS window, to avoid resending every frame.
     window_title: String,
+    /// System media controls (Now Playing). `None` when unavailable.
+    media: Option<Media>,
 }
 
 impl GuiApp {
@@ -59,6 +63,57 @@ impl GuiApp {
             volume_millibel: 0,
             notice: None,
             window_title: String::new(),
+            media: None,
+        }
+    }
+
+    /// Attach OS media controls. Called from the eframe creator, once the
+    /// egui context exists (the event callback uses it to wake the UI).
+    pub fn init_media(&mut self, ctx: egui::Context) {
+        self.media = Media::new(ctx);
+    }
+
+    fn handle_media_events(&mut self, ctx: &egui::Context) {
+        use souvlaki::{MediaControlEvent as E, SeekDirection};
+        let events = self.media.as_ref().map(Media::events).unwrap_or_default();
+        for event in events {
+            match event {
+                E::Play => self.audio.send(Command::Play),
+                E::Pause => self.audio.send(Command::Pause),
+                E::Toggle => self.toggle_play(),
+                E::Next => self.play_next(),
+                E::Previous => self.play_prev(),
+                E::Stop => self.audio.send(Command::Stop),
+                E::Seek(direction) => {
+                    let secs = match direction {
+                        SeekDirection::Forward => 5.0,
+                        SeekDirection::Backward => -5.0,
+                    };
+                    self.audio.send(Command::SeekRelative(secs));
+                }
+                E::SeekBy(direction, amount) => {
+                    let secs = amount.as_secs_f32();
+                    let secs = match direction {
+                        SeekDirection::Forward => secs,
+                        SeekDirection::Backward => -secs,
+                    };
+                    self.audio.send(Command::SeekRelative(secs));
+                }
+                E::SetPosition(position) => {
+                    let delta = position.0.as_secs_f64() - self.state.position_secs();
+                    self.audio.send(Command::SeekRelative(delta as f32));
+                }
+                E::OpenUri(uri) => {
+                    let path = uri.strip_prefix("file://").unwrap_or(&uri);
+                    self.open_paths(&[PathBuf::from(path)]);
+                }
+                E::SetVolume(_) => {} // MPRIS-only; the in-app slider owns gain
+                E::Raise => ctx.send_viewport_cmd(egui::ViewportCommand::Focus),
+                E::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            }
+        }
+        if let Some(media) = self.media.as_mut() {
+            media.sync(&self.state);
         }
     }
 
@@ -336,25 +391,29 @@ impl GuiApp {
         egui::Panel::bottom("transport").show(ui, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                let playing = self.state.playing.load(Ordering::Relaxed);
-                let toggle = if playing { "pause" } else { "play" };
-                if ui.button(RichText::new(toggle).monospace()).clicked() {
-                    self.toggle_play();
-                }
-                if ui.button(RichText::new("stop").monospace()).clicked() {
-                    self.audio.send(Command::Stop);
-                }
-                if ui.button(RichText::new("prev").monospace()).clicked() {
+                if icon_button(ui, Icon::Prev, "previous track (p)").clicked() {
                     self.play_prev();
                 }
-                if ui.button(RichText::new("next").monospace()).clicked() {
-                    self.play_next();
-                }
-                if ui.button(RichText::new("-5s").monospace()).clicked() {
+                if icon_button(ui, Icon::Rewind, "back 5s (←)").clicked() {
                     self.audio.send(Command::SeekRelative(-5.0));
                 }
-                if ui.button(RichText::new("+5s").monospace()).clicked() {
+                let playing = self.state.playing.load(Ordering::Relaxed);
+                let (toggle_icon, toggle_tip) = if playing {
+                    (Icon::Pause, "pause (space)")
+                } else {
+                    (Icon::Play, "play (space)")
+                };
+                if icon_button(ui, toggle_icon, toggle_tip).clicked() {
+                    self.toggle_play();
+                }
+                if icon_button(ui, Icon::Stop, "stop (s)").clicked() {
+                    self.audio.send(Command::Stop);
+                }
+                if icon_button(ui, Icon::FastForward, "forward 5s (→)").clicked() {
                     self.audio.send(Command::SeekRelative(5.0));
+                }
+                if icon_button(ui, Icon::Next, "next track (n)").clicked() {
+                    self.play_next();
                 }
 
                 ui.separator();
@@ -459,6 +518,7 @@ impl eframe::App for GuiApp {
 
         self.handle_dropped_files(ctx);
         self.handle_shortcuts(ctx);
+        self.handle_media_events(ctx);
         self.sync_window_title(ctx);
 
         ctx.request_repaint_after(FRAME_TIME);
