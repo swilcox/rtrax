@@ -54,3 +54,6 @@ Cargo.lock.bak
 *.bak
 *.orig
 *.rej
+
+# Local playlists from testing
+*.m3u
