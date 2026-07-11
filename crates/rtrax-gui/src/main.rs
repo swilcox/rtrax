@@ -38,6 +38,12 @@ struct Cli {
     /// Shuffle play order on startup. Toggle at runtime with `z`.
     #[arg(long, short = 'z')]
     shuffle: bool,
+
+    /// Theme: a built-in (default, neon-blue, neon-green, neon-orange, c64,
+    /// high-contrast) or a custom theme from ~/.config/rtrax/themes/. Cycle
+    /// at runtime with `t`.
+    #[arg(long, value_name = "NAME")]
+    theme: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -51,11 +57,26 @@ fn main() -> Result<()> {
 
     let (queue, initial) = resolve_queue(&cli)?;
 
+    let themes = theme::available();
+    let theme_idx = match cli.theme.as_deref() {
+        Some(name) => {
+            let wanted = theme::normalize_name(name);
+            themes
+                .iter()
+                .position(|t| t.name == wanted)
+                .unwrap_or_else(|| {
+                    tracing::warn!(theme = name, "unknown theme, using default");
+                    0
+                })
+        }
+        None => 0,
+    };
+
     let state = Arc::new(SharedState::new());
     let (fft_tx, fft_rx) = rtrb::RingBuffer::<f32>::new(FFT_RING_CAPACITY);
     let audio = audio::start(state.clone(), fft_tx)?;
 
-    let mut gui = GuiApp::new(state, audio, fft_rx, queue, cli.shuffle);
+    let mut gui = GuiApp::new(state, audio, fft_rx, queue, cli.shuffle, themes, theme_idx);
     if let Some(path) = initial.as_deref() {
         gui.load_path(path);
     }
@@ -71,8 +92,7 @@ fn main() -> Result<()> {
         "rtrax",
         options,
         Box::new(move |cc| {
-            app::apply_theme(&cc.egui_ctx);
-            gui.init_media(cc.egui_ctx.clone());
+            gui.init(&cc.egui_ctx);
             Ok(Box::new(gui))
         }),
     )

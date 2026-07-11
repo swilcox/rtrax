@@ -3,6 +3,7 @@
 //! interactions are returned to the app as values.
 
 pub mod icons;
+pub mod info;
 pub mod meters;
 pub mod pattern;
 pub mod queue;

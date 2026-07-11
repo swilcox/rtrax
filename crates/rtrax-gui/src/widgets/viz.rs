@@ -1,7 +1,7 @@
 //! The bottom visualization strip: spectrum analyzer bands on the left,
 //! master L/R output meters on the right.
 
-use crate::theme;
+use crate::theme::Theme;
 use crate::widgets::meters::bar;
 use eframe::egui::{self, Align2, CornerRadius, FontId, Pos2, Rect};
 use rtrax_core::meters::MasterMeter;
@@ -9,25 +9,31 @@ use rtrax_core::meters::MasterMeter;
 const MASTER_W: f32 = 190.0;
 const GAP: f32 = 10.0;
 
-/// Draw the strip into `rect`; returns the band count that fits the spectrum
-/// area so the caller can resize its `Spectrum`.
+/// Band count that fits the spectrum area, so the caller can resize its
+/// `Spectrum`.
 pub fn band_count_for(rect: Rect) -> usize {
     (((rect.width() - MASTER_W - GAP) / 14.0) as usize).clamp(16, 64)
 }
 
-pub fn show(painter: &egui::Painter, rect: Rect, bands: &[f32], master: &MasterMeter) {
+pub fn show(
+    painter: &egui::Painter,
+    rect: Rect,
+    bands: &[f32],
+    master: &MasterMeter,
+    theme: &Theme,
+) {
     let spectrum_rect = Rect::from_min_max(
         rect.min,
         Pos2::new((rect.max.x - MASTER_W - GAP).max(rect.min.x), rect.max.y),
     );
     let master_rect = Rect::from_min_max(Pos2::new(rect.max.x - MASTER_W, rect.min.y), rect.max);
 
-    draw_spectrum(painter, spectrum_rect, bands);
-    draw_master(painter, master_rect, master);
+    draw_spectrum(painter, spectrum_rect, bands, theme);
+    draw_master(painter, master_rect, master, theme);
 }
 
-fn draw_spectrum(painter: &egui::Painter, rect: Rect, bands: &[f32]) {
-    painter.rect_filled(rect, CornerRadius::same(4), theme::PANEL);
+fn draw_spectrum(painter: &egui::Painter, rect: Rect, bands: &[f32], theme: &Theme) {
+    painter.rect_filled(rect, CornerRadius::same(4), theme.panel);
     if bands.is_empty() || rect.width() < 8.0 {
         return;
     }
@@ -48,15 +54,14 @@ fn draw_spectrum(painter: &egui::Painter, rect: Rect, bands: &[f32]) {
         painter.rect_filled(
             bar_rect,
             CornerRadius::same(1),
-            theme::lerp_color(theme::CYAN, theme::GREEN, t),
+            crate::theme::lerp_color(theme.instrument, theme.fill, t),
         );
     }
 }
 
-/// Master meter: horizontal L/R bars sharing the channel-meter bar style
-/// (green fill, magenta hot zone, cyan peak-hold tick).
-fn draw_master(painter: &egui::Painter, rect: Rect, master: &MasterMeter) {
-    painter.rect_filled(rect, CornerRadius::same(4), theme::PANEL);
+/// Master meter: horizontal L/R bars sharing the channel-meter bar style.
+fn draw_master(painter: &egui::Painter, rect: Rect, master: &MasterMeter, theme: &Theme) {
+    painter.rect_filled(rect, CornerRadius::same(4), theme.panel);
     let inset = 10.0;
     let label_w = 16.0;
     let bar_h = 8.0;
@@ -71,7 +76,7 @@ fn draw_master(painter: &egui::Painter, rect: Rect, master: &MasterMeter) {
             Align2::LEFT_CENTER,
             label,
             FontId::monospace(11.0),
-            theme::DIM,
+            theme.dim,
         );
         bar(
             painter,
@@ -80,6 +85,7 @@ fn draw_master(painter: &egui::Painter, rect: Rect, master: &MasterMeter) {
                 egui::vec2(rect.width() - inset * 2.0 - label_w, bar_h),
             ),
             env,
+            theme,
         );
     }
 }

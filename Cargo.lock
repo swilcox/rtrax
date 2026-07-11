@@ -3529,8 +3529,10 @@ dependencies = [
  "eframe",
  "rtrax-core",
  "rtrb",
+ "serde",
  "souvlaki",
  "tempfile",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]

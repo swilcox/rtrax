@@ -3,9 +3,9 @@
 //! per frame, drain the FFT ring, send `Command`s.
 
 use crate::media::Media;
-use crate::theme;
+use crate::theme::{self, Theme};
 use crate::widgets;
-use crate::widgets::icons::{icon_button, Icon};
+use crate::widgets::icons::{icon_button, toggle_icon_button, Icon};
 use eframe::egui::{self, CornerRadius, Key, Pos2, Rect, RichText, Sense};
 use rtrax_core::audio::command::Command;
 use rtrax_core::audio::{self, AudioHandle, FFT_RING_RATE_HZ};
@@ -22,6 +22,8 @@ use std::time::Duration;
 /// UI tick. The audio thread runs independently; this only paces redraws.
 const FRAME_TIME: Duration = Duration::from_millis(33);
 const VIZ_HEIGHT: f32 = 96.0;
+/// Above this many channels the pattern view starts in compact cells.
+const COMPACT_CHANNEL_THRESHOLD: i32 = 16;
 
 pub struct GuiApp {
     state: Arc<SharedState>,
@@ -40,6 +42,20 @@ pub struct GuiApp {
     window_title: String,
     /// System media controls (Now Playing). `None` when unavailable.
     media: Option<Media>,
+    /// Built-in + custom themes, in cycle order.
+    themes: Vec<Theme>,
+    theme: Theme,
+    theme_idx: usize,
+    show_queue: bool,
+    /// Right pane: instrument/sample names instead of channel meters.
+    show_info: bool,
+    /// Floating song-info window (metadata + song message).
+    show_message: bool,
+    /// Compact pattern cells (note + instrument only). Auto-set from the
+    /// channel count on load; manual toggles stick until the next module.
+    compact: bool,
+    /// Channel count the compact auto-pick was last applied for.
+    last_layout_channels: i32,
 }
 
 impl GuiApp {
@@ -49,7 +65,15 @@ impl GuiApp {
         fft_rx: rtrb::Consumer<f32>,
         queue: Option<Playlist>,
         shuffle: bool,
+        themes: Vec<Theme>,
+        theme_idx: usize,
     ) -> Self {
+        let themes = if themes.is_empty() {
+            theme::built_ins()
+        } else {
+            themes
+        };
+        let theme_idx = theme_idx.min(themes.len() - 1);
         Self {
             state,
             audio,
@@ -64,13 +88,29 @@ impl GuiApp {
             notice: None,
             window_title: String::new(),
             media: None,
+            theme: themes[theme_idx].clone(),
+            themes,
+            theme_idx,
+            show_queue: false,
+            show_info: false,
+            show_message: false,
+            compact: false,
+            last_layout_channels: -1,
         }
     }
 
-    /// Attach OS media controls. Called from the eframe creator, once the
-    /// egui context exists (the event callback uses it to wake the UI).
-    pub fn init_media(&mut self, ctx: egui::Context) {
-        self.media = Media::new(ctx);
+    /// One-time setup from the eframe creator, once the egui context exists:
+    /// apply the theme and attach OS media controls (whose event callback
+    /// uses the context to wake the UI).
+    pub fn init(&mut self, ctx: &egui::Context) {
+        apply_theme(ctx, &self.theme);
+        self.media = Media::new(ctx.clone());
+    }
+
+    fn cycle_theme(&mut self, ctx: &egui::Context) {
+        self.theme_idx = (self.theme_idx + 1) % self.themes.len();
+        self.theme = self.themes[self.theme_idx].clone();
+        apply_theme(ctx, &self.theme);
     }
 
     fn handle_media_events(&mut self, ctx: &egui::Context) {
@@ -197,11 +237,26 @@ impl GuiApp {
         }
     }
 
+    /// Auto-pick compact cells when a newly loaded module's channel count
+    /// crosses the threshold. Manual toggles stick until the next load.
+    fn maybe_auto_layout(&mut self) {
+        let n = self.state.num_channels.load(Ordering::Relaxed);
+        if n > 0 && n != self.last_layout_channels {
+            self.last_layout_channels = n;
+            self.compact = n > COMPACT_CHANNEL_THRESHOLD;
+        }
+    }
+
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         // Don't steal keys from a focused widget (e.g. a slider being driven
-        // by arrow keys).
+        // by arrow keys) — and leave Tab to egui's focus traversal then.
         if ctx.memory(|m| m.focused().is_some()) {
             return;
+        }
+        // Tab must be consumed, not just read, or egui focuses a widget too.
+        let tab = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Tab));
+        if tab {
+            self.show_queue = !self.show_queue;
         }
         struct Keys {
             play: bool,
@@ -211,6 +266,10 @@ impl GuiApp {
             fwd: bool,
             back: bool,
             shuffle: bool,
+            theme: bool,
+            compact: bool,
+            message: bool,
+            info: bool,
         }
         let keys = ctx.input(|i| Keys {
             play: i.key_pressed(Key::Space),
@@ -220,6 +279,10 @@ impl GuiApp {
             fwd: i.key_pressed(Key::ArrowRight),
             back: i.key_pressed(Key::ArrowLeft),
             shuffle: i.key_pressed(Key::Z),
+            theme: i.key_pressed(Key::T),
+            compact: i.key_pressed(Key::C),
+            message: i.key_pressed(Key::M),
+            info: i.key_pressed(Key::I),
         });
         if keys.play {
             self.toggle_play();
@@ -241,6 +304,18 @@ impl GuiApp {
         }
         if keys.shuffle {
             self.toggle_shuffle();
+        }
+        if keys.theme {
+            self.cycle_theme(ctx);
+        }
+        if keys.compact {
+            self.compact = !self.compact;
+        }
+        if keys.message {
+            self.show_message = !self.show_message;
+        }
+        if keys.info {
+            self.show_info = !self.show_info;
         }
     }
 
@@ -265,6 +340,7 @@ impl GuiApp {
     // ── panels ──────────────────────────────────────────────────────────────
 
     fn header_panel(&mut self, ui: &mut egui::Ui) {
+        let theme = self.theme.clone();
         egui::Panel::top("header").show(ui, |ui| {
             ui.add_space(10.0);
             ui.horizontal(|ui| {
@@ -277,15 +353,13 @@ impl GuiApp {
                 if title.is_empty() {
                     ui.label(
                         RichText::new("rtrax")
-                            .color(theme::DIM)
+                            .color(theme.dim)
                             .monospace()
                             .size(18.0),
                     );
-                    ui.label(
-                        RichText::new("· drop module files or folders here").color(theme::DIM),
-                    );
+                    ui.label(RichText::new("· drop module files or folders here").color(theme.dim));
                 } else {
-                    ui.label(RichText::new(title).color(theme::FG).monospace().size(18.0));
+                    ui.label(RichText::new(title).color(theme.fg).monospace().size(18.0));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let time = format!(
@@ -293,20 +367,20 @@ impl GuiApp {
                         theme::fmt_mmss(self.state.position_secs()),
                         theme::fmt_mmss(self.state.duration_secs())
                     );
-                    ui.label(RichText::new(time).color(theme::DIM).monospace());
+                    ui.label(RichText::new(time).color(theme.dim).monospace());
                 });
             });
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(self.subtitle_left())
-                        .color(theme::DIM)
+                        .color(theme.dim)
                         .monospace()
                         .size(12.0),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
                         RichText::new(self.subtitle_right())
-                            .color(theme::DIM)
+                            .color(theme.dim)
                             .monospace()
                             .size(12.0),
                     );
@@ -357,6 +431,7 @@ impl GuiApp {
     /// Seekable progress bar: click or drag maps to an absolute position, sent
     /// as a relative seek from the current one (the engine's only seek command).
     fn progress_bar(&mut self, ui: &mut egui::Ui) {
+        let theme = self.theme.clone();
         let pos = self.state.position_secs();
         let dur = self.state.duration_secs();
         let frac = if dur > 0.0 {
@@ -368,13 +443,13 @@ impl GuiApp {
         let desired = egui::vec2(ui.available_width(), 6.0);
         let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click_and_drag());
         let painter = ui.painter();
-        painter.rect_filled(rect, CornerRadius::same(3), theme::TRACK);
+        painter.rect_filled(rect, CornerRadius::same(3), theme.track);
         if frac > 0.0 {
             let fill = Rect::from_min_max(
                 rect.min,
                 Pos2::new(rect.left() + rect.width() * frac, rect.bottom()),
             );
-            painter.rect_filled(fill, CornerRadius::same(3), theme::GREEN);
+            painter.rect_filled(fill, CornerRadius::same(3), theme.fill);
         }
 
         if (response.clicked() || response.dragged()) && dur > 0.0 && rect.width() > 0.0 {
@@ -388,13 +463,14 @@ impl GuiApp {
     }
 
     fn transport_panel(&mut self, ui: &mut egui::Ui) {
+        let theme = self.theme.clone();
         egui::Panel::bottom("transport").show(ui, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if icon_button(ui, Icon::Prev, "previous track (p)").clicked() {
+                if icon_button(ui, Icon::Prev, "previous track (p)", &theme).clicked() {
                     self.play_prev();
                 }
-                if icon_button(ui, Icon::Rewind, "back 5s (←)").clicked() {
+                if icon_button(ui, Icon::Rewind, "back 5s (←)", &theme).clicked() {
                     self.audio.send(Command::SeekRelative(-5.0));
                 }
                 let playing = self.state.playing.load(Ordering::Relaxed);
@@ -403,16 +479,16 @@ impl GuiApp {
                 } else {
                     (Icon::Play, "play (space)")
                 };
-                if icon_button(ui, toggle_icon, toggle_tip).clicked() {
+                if icon_button(ui, toggle_icon, toggle_tip, &theme).clicked() {
                     self.toggle_play();
                 }
-                if icon_button(ui, Icon::Stop, "stop (s)").clicked() {
+                if icon_button(ui, Icon::Stop, "stop (s)", &theme).clicked() {
                     self.audio.send(Command::Stop);
                 }
-                if icon_button(ui, Icon::FastForward, "forward 5s (→)").clicked() {
+                if icon_button(ui, Icon::FastForward, "forward 5s (→)", &theme).clicked() {
                     self.audio.send(Command::SeekRelative(5.0));
                 }
-                if icon_button(ui, Icon::Next, "next track (n)").clicked() {
+                if icon_button(ui, Icon::Next, "next track (n)", &theme).clicked() {
                     self.play_next();
                 }
 
@@ -426,27 +502,68 @@ impl GuiApp {
                         .send(Command::VolumeMillibel(self.volume_millibel));
                 }
 
-                ui.with_layout(
-                    egui::Layout::right_to_left(egui::Align::Center),
-                    |ui| match &self.notice {
-                        Some(notice) => {
-                            ui.label(
-                                RichText::new(notice)
-                                    .color(theme::MAGENTA)
-                                    .monospace()
-                                    .size(12.0),
-                            );
-                        }
-                        None => {
-                            ui.label(
-                                RichText::new("space play · n/p track · ←/→ seek · z shuffle")
-                                    .color(theme::DIM)
-                                    .monospace()
-                                    .size(11.0),
-                            );
-                        }
-                    },
-                );
+                // View toggles + theme cycler live on the right; a load-error
+                // notice squeezes in to their left when present. Keyboard
+                // shortcuts are documented in the tooltips.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let tip = format!("theme: {} — click to cycle (t)", theme.name);
+                    if icon_button(ui, Icon::Palette, &tip, &theme).clicked() {
+                        let ctx = ui.ctx().clone();
+                        self.cycle_theme(&ctx);
+                    }
+                    if toggle_icon_button(
+                        ui,
+                        Icon::Compact,
+                        self.compact,
+                        "compact pattern cells (c)",
+                        &theme,
+                    )
+                    .clicked()
+                    {
+                        self.compact = !self.compact;
+                    }
+                    if toggle_icon_button(
+                        ui,
+                        Icon::SongInfo,
+                        self.show_message,
+                        "song message + metadata (m)",
+                        &theme,
+                    )
+                    .clicked()
+                    {
+                        self.show_message = !self.show_message;
+                    }
+                    if toggle_icon_button(
+                        ui,
+                        Icon::Instruments,
+                        self.show_info,
+                        "live instrument per channel (i)",
+                        &theme,
+                    )
+                    .clicked()
+                    {
+                        self.show_info = !self.show_info;
+                    }
+                    if toggle_icon_button(
+                        ui,
+                        Icon::Queue,
+                        self.show_queue,
+                        "show/hide the queue (tab)",
+                        &theme,
+                    )
+                    .clicked()
+                    {
+                        self.show_queue = !self.show_queue;
+                    }
+                    if let Some(notice) = &self.notice {
+                        ui.label(
+                            RichText::new(notice)
+                                .color(theme.accent)
+                                .monospace()
+                                .size(12.0),
+                        );
+                    }
+                });
             });
             ui.add_space(8.0);
         });
@@ -459,23 +576,35 @@ impl GuiApp {
                 .allocate_exact_size(egui::vec2(ui.available_width(), VIZ_HEIGHT), Sense::hover());
             self.spectrum
                 .resize_bands(widgets::viz::band_count_for(rect));
-            widgets::viz::show(ui.painter(), rect, self.spectrum.bands(), &self.master);
+            widgets::viz::show(
+                ui.painter(),
+                rect,
+                self.spectrum.bands(),
+                &self.master,
+                &self.theme,
+            );
             ui.add_space(6.0);
         });
     }
 
     fn queue_panel(&mut self, ui: &mut egui::Ui) {
-        let show_queue = self.queue.as_ref().is_some_and(|q| !q.is_empty());
+        let show_queue = self.show_queue && self.queue.as_ref().is_some_and(|q| !q.is_empty());
         if !show_queue {
             return;
         }
+        let theme = self.theme.clone();
         let mut action = None;
         egui::Panel::left("queue")
             .default_size(230.0)
             .show(ui, |ui| {
                 if let Some(queue) = &self.queue {
-                    action =
-                        widgets::queue::show(ui, queue, self.current_path.as_deref(), self.shuffle);
+                    action = widgets::queue::show(
+                        ui,
+                        queue,
+                        self.current_path.as_deref(),
+                        self.shuffle,
+                        &theme,
+                    );
                 }
             });
         match action {
@@ -485,22 +614,87 @@ impl GuiApp {
         }
     }
 
-    fn meters_panel(&mut self, ui: &mut egui::Ui) {
+    fn side_panel(&mut self, ui: &mut egui::Ui) {
         if self.channel_meters.is_empty() {
             return;
         }
-        egui::Panel::right("meters")
+        let theme = self.theme.clone();
+        egui::Panel::right("side")
             .default_size(170.0)
             .show(ui, |ui| {
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new(format!("channels · {}", self.channel_meters.len()))
-                        .color(theme::DIM)
-                        .monospace(),
-                );
-                ui.separator();
-                widgets::meters::show(ui, &self.channel_meters);
+                if self.show_info {
+                    widgets::info::show(ui, &self.state, &theme);
+                } else {
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(format!("channels · {}", self.channel_meters.len()))
+                            .color(theme.dim)
+                            .monospace(),
+                    );
+                    ui.separator();
+                    widgets::meters::show(ui, &self.channel_meters, &theme);
+                }
             });
+    }
+
+    /// Floating song-info window: metadata block + the module's free-form
+    /// song message / liner notes.
+    fn message_window(&mut self, ctx: &egui::Context) {
+        if !self.show_message {
+            return;
+        }
+        let theme = self.theme.clone();
+        let mut open = self.show_message;
+        egui::Window::new("song info")
+            .open(&mut open)
+            .collapsible(false)
+            .default_size([480.0, 380.0])
+            .show(ctx, |ui| {
+                let grab =
+                    |m: &std::sync::Mutex<String>| m.lock().map(|s| s.clone()).unwrap_or_default();
+                let rows = [
+                    ("title", grab(&self.state.title)),
+                    ("format", grab(&self.state.format_label)),
+                    ("artist", grab(&self.state.artist)),
+                    ("tracker", grab(&self.state.tracker)),
+                ];
+                for (label, value) in rows {
+                    if value.trim().is_empty() {
+                        continue;
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("{label:>8}"))
+                                .color(theme.dim)
+                                .monospace()
+                                .size(12.0),
+                        );
+                        ui.label(RichText::new(value).color(theme.fg).monospace().size(12.0));
+                    });
+                }
+                ui.separator();
+                let message = grab(&self.state.song_message);
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        if message.trim().is_empty() {
+                            ui.label(
+                                RichText::new("no song message")
+                                    .color(theme.dim)
+                                    .monospace()
+                                    .size(12.0),
+                            );
+                        } else {
+                            ui.label(
+                                RichText::new(message)
+                                    .color(theme.fg.gamma_multiply(0.9))
+                                    .monospace()
+                                    .size(12.0),
+                            );
+                        }
+                    });
+            });
+        self.show_message = open;
     }
 }
 
@@ -510,6 +704,7 @@ impl eframe::App for GuiApp {
         self.channel_meters.step(&self.state);
         self.master.step(&self.state);
         self.audio.drain_drops();
+        self.maybe_auto_layout();
 
         // Song ended: advance through the queue, if there is more to play.
         if self.state.eof.swap(false, Ordering::Relaxed) {
@@ -530,9 +725,11 @@ impl eframe::App for GuiApp {
         self.transport_panel(ui);
         self.viz_panel(ui);
         self.queue_panel(ui);
-        self.meters_panel(ui);
+        self.side_panel(ui);
+        let theme = self.theme.clone();
+        let compact = self.compact;
         egui::CentralPanel::default_margins().show(ui, |ui| {
-            widgets::pattern::show(ui, &self.state);
+            widgets::pattern::show(ui, &self.state, &theme, compact);
             let hovering_file = ui.ctx().input(|i| !i.raw.hovered_files.is_empty());
             if hovering_file {
                 let rect = ui.max_rect();
@@ -541,19 +738,20 @@ impl eframe::App for GuiApp {
                     egui::Align2::CENTER_CENTER,
                     "drop to play",
                     egui::FontId::monospace(20.0),
-                    theme::MAGENTA,
+                    theme.accent,
                 );
             }
         });
+        self.message_window(&ui.ctx().clone());
     }
 }
 
-pub fn apply_theme(ctx: &egui::Context) {
+pub fn apply_theme(ctx: &egui::Context, theme: &Theme) {
     let mut visuals = egui::Visuals::dark();
-    visuals.panel_fill = theme::BG;
-    visuals.window_fill = theme::BG;
-    visuals.override_text_color = Some(theme::FG);
-    visuals.selection.bg_fill = theme::GREEN.gamma_multiply(0.55);
+    visuals.panel_fill = theme.bg;
+    visuals.window_fill = theme.panel;
+    visuals.override_text_color = Some(theme.fg);
+    visuals.selection.bg_fill = theme.fill.gamma_multiply(0.55);
     visuals.slider_trailing_fill = true;
     ctx.set_visuals(visuals);
 }
