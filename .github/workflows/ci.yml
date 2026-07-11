@@ -23,7 +23,7 @@ jobs:
       - name: Install libopenmpt
         run: |
           sudo apt-get update
-          sudo apt-get install -y libopenmpt-dev libasound2-dev pkg-config
+          sudo apt-get install -y libopenmpt-dev libasound2-dev libdbus-1-dev pkg-config
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -52,7 +52,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libopenmpt-dev libasound2-dev pkg-config
+          sudo apt-get install -y libopenmpt-dev libasound2-dev libdbus-1-dev pkg-config
 
       - name: Install libopenmpt (macOS)
         if: runner.os == 'macOS'
