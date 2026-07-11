@@ -57,17 +57,23 @@ unsigned binary, choose **More info → Run anyway**.
 
 ### macOS / Linux (build from source)
 
-libopenmpt is a runtime dependency, installed as a system library:
+libopenmpt is a runtime dependency, installed as a system library. On Linux
+the build also needs the ALSA headers (audio output via cpal) and the D-Bus
+headers (media-key / MPRIS integration in `rtrax-gui`) — note it's the
+`-dev`/`-devel` packages you want, not just the runtime libraries:
 
 ```sh
 # macOS
 brew install libopenmpt
 
 # Debian / Ubuntu
-sudo apt install libopenmpt-dev
+sudo apt install libopenmpt-dev libasound2-dev libdbus-1-dev pkg-config
+
+# Fedora
+sudo dnf install libopenmpt-devel alsa-lib-devel dbus-devel
 
 # Arch
-sudo pacman -S libopenmpt
+sudo pacman -S libopenmpt alsa-lib dbus
 ```
 
 Then build with cargo:
