@@ -257,16 +257,11 @@ impl Default for KeyMap {
 
 impl Config {
     pub fn config_dir() -> Option<PathBuf> {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from)
-            .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
-            .or_else(dirs::config_dir)
-            .map(|base| base.join("rtrax"))
+        rtrax_core::paths::config_dir()
     }
 
     pub fn theme_dir() -> Option<PathBuf> {
-        Self::config_dir().map(|dir| dir.join("themes"))
+        rtrax_core::paths::theme_dir()
     }
 
     pub fn load() -> Self {

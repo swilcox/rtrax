@@ -13,14 +13,28 @@
 [![Code size](https://img.shields.io/github/languages/code-size/swilcox/rtrax)](https://github.com/swilcox/rtrax)
 [![Top language](https://img.shields.io/github/languages/top/swilcox/rtrax)](https://github.com/swilcox/rtrax)
 
-A TUI module player for `.mod` / `.xm` / `.it` / `.s3m` / `.mtm` (and anything
-else libopenmpt reads). Per-channel level meters, scrolling pattern view,
-master spectrum analyzer, file browser. macOS, Linux, and Windows.
+A module player for `.mod` / `.xm` / `.it` / `.s3m` / `.mtm` (and anything
+else libopenmpt reads), with two frontends on one engine: a TUI and a native
+GUI. Per-channel level meters, scrolling pattern view, master spectrum
+analyzer, file browser / queue. macOS, Linux, and Windows.
 
 ![rtrax screenshot](docs/screenshot.png)
 
 > The image above is a placeholder mockup — swap in a real terminal capture
 > by overwriting `docs/screenshot.png`.
+
+### GUI
+
+The native GUI (`rtrax-gui`, egui-based) drives the same engine: pattern view
+with per-token coloring, live channel meters or instrument view, spectrum,
+queue with shuffle, themes shared with the TUI (including custom theme files),
+and system media-key / Now Playing integration.
+
+![rtrax GUI screenshot](docs/gui_screenshot.png)
+
+```sh
+cargo run --release --bin rtrax-gui -- some_song.it   # or: just gui some_song.it
+```
 
 ## Install
 

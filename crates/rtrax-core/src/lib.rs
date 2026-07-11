@@ -11,6 +11,7 @@ pub mod fft;
 pub mod files;
 pub mod launch;
 pub mod meters;
+pub mod paths;
 pub mod playlist;
 pub mod rng;
 pub mod state;

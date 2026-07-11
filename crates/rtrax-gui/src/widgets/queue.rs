@@ -1,7 +1,7 @@
 //! Queue side panel: the play order, current track highlighted, click to
 //! jump. Interactions come back to the app as an `Action`.
 
-use crate::theme;
+use crate::theme::Theme;
 use eframe::egui::{self, RichText};
 use rtrax_core::playlist::Playlist;
 use std::path::{Path, PathBuf};
@@ -16,6 +16,7 @@ pub fn show(
     queue: &Playlist,
     current: Option<&Path>,
     shuffle: bool,
+    theme: &Theme,
 ) -> Option<Action> {
     let mut action = None;
     let current_idx = current.and_then(|c| queue.position(c));
@@ -24,14 +25,14 @@ pub fn show(
     ui.horizontal(|ui| {
         ui.label(
             RichText::new(format!("queue · {}", queue.len()))
-                .color(theme::DIM)
+                .color(theme.dim)
                 .monospace(),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let label = RichText::new("shuffle")
                 .monospace()
                 .size(11.0)
-                .color(if shuffle { theme::GREEN } else { theme::DIM });
+                .color(if shuffle { theme.fill } else { theme.dim });
             if ui.selectable_label(shuffle, label).clicked() {
                 action = Some(Action::ToggleShuffle);
             }
@@ -52,9 +53,9 @@ pub fn show(
                     .monospace()
                     .size(12.0)
                     .color(if is_current {
-                        theme::GREEN
+                        theme.fill
                     } else {
-                        theme::FG.gamma_multiply(0.8)
+                        theme.fg.gamma_multiply(0.8)
                     });
                 if ui.selectable_label(is_current, text).clicked() && !is_current {
                     action = Some(Action::Play(path.clone()));
