@@ -17,5 +17,13 @@ toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+# Extracting the Win32 window handle for souvlaki's SMTC backend.
+raw-window-handle = "0.6"
+
+[target.'cfg(windows)'.build-dependencies]
+# Embeds the icon + version resource into the .exe.
+winresource = "0.1"
+
 [dev-dependencies]
 tempfile = { workspace = true }

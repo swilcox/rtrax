@@ -45,9 +45,11 @@ No toolchain needed. A self-contained bundle is attached to every
 `rtrax-windows-x64.zip`:
 
 1. Download `rtrax-windows-x64.zip` from the latest release and unzip it.
-2. Keep `rtrax.exe` and the bundled `.dll` files together in one folder.
-3. Run `rtrax.exe` — pass a module path (`rtrax.exe song.xm`) or launch with no
-   argument to open the file browser.
+2. Keep the `.exe` files and the bundled `.dll` files together in one folder.
+3. Run `rtrax.exe` (TUI) — pass a module path (`rtrax.exe song.xm`) or launch
+   with no argument to open the file browser. Or run `rtrax-gui.exe` for the
+   native GUI: double-click it, drop module files onto the window, or pass a
+   path on the command line.
 
 The zip ships libopenmpt, its audio dependencies, and the MSVC runtime DLLs, so
 **nothing else needs installing** — no Visual C++ redistributable required. For

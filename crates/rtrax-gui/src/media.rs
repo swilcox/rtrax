@@ -4,7 +4,6 @@
 //! channel drained once per frame; song metadata and playback state are
 //! pushed back out so the OS scrubber stays truthful.
 
-use eframe::egui;
 use rtrax_core::state::SharedState;
 use souvlaki::{
     MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, MediaPosition, PlatformConfig,
@@ -24,12 +23,14 @@ pub struct Media {
 
 impl Media {
     /// `None` (with a warning logged) when the platform backend can't attach —
-    /// the app works fine without it.
-    pub fn new(ctx: egui::Context) -> Option<Self> {
+    /// the app works fine without it. Windows' SMTC backend requires the
+    /// window handle, extracted from the creation context.
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Option<Self> {
+        let ctx = cc.egui_ctx.clone();
         let config = PlatformConfig {
             display_name: "rtrax",
             dbus_name: "rtrax",
-            hwnd: None,
+            hwnd: window_hwnd(cc),
         };
         let mut controls = match MediaControls::new(config) {
             Ok(controls) => controls,
@@ -108,4 +109,20 @@ impl Media {
             self.last_push = Instant::now();
         }
     }
+}
+
+/// The Win32 window handle souvlaki's SMTC backend needs. `None` elsewhere
+/// (macOS and Linux backends don't use it).
+#[cfg(target_os = "windows")]
+fn window_hwnd(cc: &eframe::CreationContext<'_>) -> Option<*mut std::ffi::c_void> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match cc.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as *mut std::ffi::c_void),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn window_hwnd(_cc: &eframe::CreationContext<'_>) -> Option<*mut std::ffi::c_void> {
+    None
 }

@@ -99,12 +99,12 @@ impl GuiApp {
         }
     }
 
-    /// One-time setup from the eframe creator, once the egui context exists:
-    /// apply the theme and attach OS media controls (whose event callback
-    /// uses the context to wake the UI).
-    pub fn init(&mut self, ctx: &egui::Context) {
-        apply_theme(ctx, &self.theme);
-        self.media = Media::new(ctx.clone());
+    /// One-time setup from the eframe creator, once the egui context and the
+    /// native window exist: apply the theme and attach OS media controls
+    /// (whose Windows backend needs the window handle).
+    pub fn init(&mut self, cc: &eframe::CreationContext<'_>) {
+        apply_theme(&cc.egui_ctx, &self.theme);
+        self.media = Media::new(cc);
     }
 
     fn cycle_theme(&mut self, ctx: &egui::Context) {
