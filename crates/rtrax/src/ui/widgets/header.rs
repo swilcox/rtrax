@@ -1,7 +1,6 @@
 //! Header bar: title, format, BPM, pattern position, progress bar, mm:ss / mm:ss.
 
 use crate::config::ProgressBarStyle;
-use crate::state::SharedState;
 use crate::ui::theme::Theme;
 use crate::ui::widgets::progress;
 use ratatui::layout::{Alignment, Rect};
@@ -9,6 +8,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use rtrax_core::state::SharedState;
 use std::sync::atomic::Ordering;
 
 pub fn render(

@@ -1,11 +1,16 @@
+mod config;
+mod input;
+mod ui;
+
+use crate::config::{Config, ThemeChoice};
+use crate::ui::{restore_terminal_for_panic, App};
 use anyhow::Result;
 use clap::Parser;
-use rtrax::audio::command::Command;
-use rtrax::audio::{self, FFT_RING_CAPACITY};
-use rtrax::config::{Config, ThemeChoice};
-use rtrax::playlist::Playlist;
-use rtrax::state::SharedState;
-use rtrax::ui::{restore_terminal_for_panic, App, Launch, PlayMode};
+use rtrax_core::audio::command::Command;
+use rtrax_core::audio::{self, FFT_RING_CAPACITY};
+use rtrax_core::launch::{Launch, PlayMode};
+use rtrax_core::playlist::Playlist;
+use rtrax_core::state::SharedState;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;

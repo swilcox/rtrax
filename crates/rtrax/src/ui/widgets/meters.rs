@@ -1,83 +1,27 @@
-//! Per-channel level meters. Reads VU atomics; applies attack/decay envelope
-//! in the UI thread. Peak-hold marker with a slow fall.
+//! Per-channel level meters. Steps `rtrax_core::meters::ChannelMeters` in the
+//! UI thread and renders the smoothed bars with peak-hold markers.
 
-use crate::state::SharedState;
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+use rtrax_core::meters::ChannelMeters;
+use rtrax_core::state::SharedState;
 use std::sync::atomic::Ordering;
-use std::time::Instant;
 
 const BAR_BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-const DECAY_PER_FRAME: f32 = 0.10; // ~30dB/sec at 30fps
-const PEAK_HOLD_SECS: f32 = 1.5;
 const BAR_W: usize = 8;
 // "NN L ████████" — 2 digit label + space + L/R + space + bar
 const ENTRY_W: usize = 2 + 1 + 1 + 1 + BAR_W;
 const COL_GAP: usize = 2;
 
-#[derive(Default, Clone, Copy)]
-struct Envelope {
-    smoothed: f32,
-    peak: f32,
-    peak_set_at: Option<Instant>,
-}
-
-impl Envelope {
-    fn step(&mut self, v: f32, now: Instant) {
-        let v = v.clamp(0.0, 1.0);
-        // ATTACK=1.0 means rises instantly to the new sample, then decays linearly.
-        let s = if v >= self.smoothed {
-            v
-        } else {
-            (self.smoothed - DECAY_PER_FRAME).max(v)
-        };
-        self.smoothed = s;
-        if s >= self.peak {
-            self.peak = s;
-            self.peak_set_at = Some(now);
-        } else if let Some(t) = self.peak_set_at {
-            if now.duration_since(t).as_secs_f32() > PEAK_HOLD_SECS {
-                self.peak = (self.peak - 0.02).max(s);
-            }
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct MeterState {
-    left: Vec<Envelope>,
-    right: Vec<Envelope>,
-}
-
-impl MeterState {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn step(&mut self, state: &SharedState) {
-        let n = state.num_channels.load(Ordering::Relaxed).max(0) as usize;
-        if self.left.len() != n {
-            self.left.resize(n, Envelope::default());
-            self.right.resize(n, Envelope::default());
-        }
-        let now = Instant::now();
-        for ch in 0..n {
-            let (l, r) = state.vu(ch);
-            self.left[ch].step(l, now);
-            self.right[ch].step(r, now);
-        }
-    }
-}
-
 pub fn render(
     f: &mut Frame,
     area: Rect,
     state: &SharedState,
-    meter_state: &MeterState,
+    meter_state: &ChannelMeters,
     theme: &Theme,
     focused: bool,
 ) {
@@ -120,12 +64,8 @@ pub fn render(
                 spans.push(Span::raw(" ".repeat(ENTRY_W + COL_GAP)));
                 continue;
             }
-            let env = if is_left {
-                meter_state.left.get(ch).copied()
-            } else {
-                meter_state.right.get(ch).copied()
-            }
-            .unwrap_or_default();
+            let (env_l, env_r) = meter_state.channel(ch);
+            let env = if is_left { env_l } else { env_r };
             let label = if is_left {
                 format!("{:>2} L ", ch + 1)
             } else {

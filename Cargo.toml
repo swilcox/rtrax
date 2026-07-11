@@ -1,19 +1,23 @@
-[package]
-name = "rtrax"
+[workspace]
+resolver = "2"
+members = ["crates/rtrax-core", "crates/rtrax", "crates/rtrax-gui"]
+
+[workspace.package]
 version = "0.8.0"
 edition = "2021"
-description = "TUI MOD/XM/IT/S3M/MTM module player"
 license = "MIT OR Apache-2.0"
 
-[dependencies]
+[workspace.dependencies]
+rtrax-core = { path = "crates/rtrax-core", version = "0.8.0" }
 openmpt = "0.3"
 cpal = "0.15"
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 crossterm = "0.29"
+eframe = "0.35"
+souvlaki = "0.8"
 rustfft = "6"
 rtrb = "0.3"
 crossbeam-channel = "0.5"
-walkdir = "2"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 tracing = "0.1"
@@ -22,18 +26,8 @@ tracing-appender = "0.2"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 dirs = "5"
-
-[dev-dependencies]
 tempfile = "3"
 
 [profile.release]
 lto = "thin"
 codegen-units = 1
-
-[[example]]
-name = "load_print"
-path = "examples/load_print.rs"
-
-[[example]]
-name = "play"
-path = "examples/play.rs"

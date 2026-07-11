@@ -1,0 +1,27 @@
+[package]
+name = "rtrax-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Frontend-agnostic playback engine for rtrax: openmpt decoding, cpal output, lock-free shared state"
+
+[dependencies]
+openmpt = { workspace = true }
+cpal = { workspace = true }
+rustfft = { workspace = true }
+rtrb = { workspace = true }
+crossbeam-channel = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+dirs = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[[example]]
+name = "load_print"
+path = "examples/load_print.rs"
+
+[[example]]
+name = "play"
+path = "examples/play.rs"

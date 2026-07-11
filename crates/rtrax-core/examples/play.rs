@@ -3,9 +3,9 @@
 //! Usage: `cargo run --release --example play -- path/to/song.xm`
 
 use anyhow::{Context, Result};
-use rtrax::audio::command::Command;
-use rtrax::audio::{self, FFT_RING_CAPACITY};
-use rtrax::state::SharedState;
+use rtrax_core::audio::command::Command;
+use rtrax_core::audio::{self, FFT_RING_CAPACITY};
+use rtrax_core::state::SharedState;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
