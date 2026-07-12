@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --bin rtrax
+        run: cargo build --release --bin rtrax --bin rtrax-gui
 
       - name: Stage bundle
         shell: pwsh
@@ -46,6 +46,7 @@ jobs:
           $stage = "rtrax-windows-x64"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item target/release/rtrax.exe $stage/
+          Copy-Item target/release/rtrax-gui.exe $stage/
           # libopenmpt.dll plus its runtime dependencies.
           Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $stage/
           # MSVC runtime DLLs the vcpkg DLLs link dynamically — bundle them so

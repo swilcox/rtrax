@@ -3,6 +3,10 @@
 //! Thin entry point: parse the CLI, resolve the starting queue, start the
 //! audio engine, and hand everything to [`app::GuiApp`].
 
+// No console window when launched from Explorer on Windows release builds
+// (debug builds keep the console so tracing output stays visible).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod app;
 mod media;
 mod theme;
@@ -84,6 +88,7 @@ fn main() -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("rtrax")
+            .with_icon(window_icon())
             .with_inner_size([1080.0, 640.0])
             .with_min_inner_size([640.0, 400.0]),
         ..Default::default()
@@ -92,11 +97,22 @@ fn main() -> Result<()> {
         "rtrax",
         options,
         Box::new(move |cc| {
-            gui.init(&cc.egui_ctx);
+            gui.init(cc);
             Ok(Box::new(gui))
         }),
     )
     .map_err(|err| anyhow::anyhow!("eframe: {err}"))
+}
+
+/// Window/taskbar icon, pre-rendered as raw RGBA at build time from the
+/// same design embedded in the Windows .ico (see `assets/`).
+fn window_icon() -> egui::IconData {
+    const RGBA: &[u8] = include_bytes!("../assets/icon-64.rgba");
+    egui::IconData {
+        rgba: RGBA.to_vec(),
+        width: 64,
+        height: 64,
+    }
 }
 
 /// Decide the starting queue and track from the CLI. Files (or directories)
