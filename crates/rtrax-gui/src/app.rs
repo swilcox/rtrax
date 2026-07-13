@@ -753,7 +753,15 @@ pub fn apply_theme(ctx: &egui::Context, theme: &Theme) {
     visuals.override_text_color = Some(theme.fg);
     visuals.selection.bg_fill = theme.fill.gamma_multiply(0.55);
     visuals.slider_trailing_fill = true;
-    ctx.set_visuals(visuals);
+    // rtrax themes own the palette; the OS light/dark preference must not
+    // participate. egui defaults to following the system theme and keeps
+    // separate dark/light visuals slots — `set_visuals` alone writes only the
+    // *active* slot, so on a light-mode system (e.g. Windows) the first
+    // frames rendered egui's stock light visuals until the next theme cycle.
+    // Pin the preference and fill both slots so no flip can expose them.
+    ctx.set_theme(egui::ThemePreference::Dark);
+    ctx.set_visuals_of(egui::Theme::Dark, visuals.clone());
+    ctx.set_visuals_of(egui::Theme::Light, visuals);
 }
 
 /// Build a queue from files and/or directories:
