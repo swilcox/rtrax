@@ -3,12 +3,12 @@ resolver = "2"
 members = ["crates/rtrax-core", "crates/rtrax", "crates/rtrax-gui"]
 
 [workspace.package]
-version = "0.10.0"
+version = "0.10.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-rtrax-core = { path = "crates/rtrax-core", version = "0.10.0" }
+rtrax-core = { path = "crates/rtrax-core", version = "0.10.1" }
 openmpt = "0.3"
 cpal = "0.15"
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
