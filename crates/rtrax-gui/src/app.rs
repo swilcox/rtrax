@@ -47,6 +47,9 @@ pub struct GuiApp {
     theme: Theme,
     theme_idx: usize,
     show_queue: bool,
+    /// One-shot: scroll the queue so the playing track is visible, set when
+    /// the panel is toggled open.
+    queue_reveal: bool,
     /// Right pane: instrument/sample names instead of channel meters.
     show_info: bool,
     /// Floating song-info window (metadata + song message).
@@ -92,6 +95,7 @@ impl GuiApp {
             themes,
             theme_idx,
             show_queue: false,
+            queue_reveal: false,
             show_info: false,
             show_message: false,
             compact: false,
@@ -192,6 +196,12 @@ impl GuiApp {
         }
     }
 
+    fn toggle_queue(&mut self) {
+        self.show_queue = !self.show_queue;
+        // Land with the playing track in view, not at the top of the list.
+        self.queue_reveal = self.show_queue;
+    }
+
     fn toggle_shuffle(&mut self) {
         self.shuffle = !self.shuffle;
         let anchor = self.current_path.clone();
@@ -256,7 +266,7 @@ impl GuiApp {
         // Tab must be consumed, not just read, or egui focuses a widget too.
         let tab = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Tab));
         if tab {
-            self.show_queue = !self.show_queue;
+            self.toggle_queue();
         }
         struct Keys {
             play: bool,
@@ -405,12 +415,21 @@ impl GuiApp {
             .lock()
             .map(|s| s.clone())
             .unwrap_or_default();
-        let mut sub = format_label;
-        if !artist.is_empty() {
+        let file_name = self
+            .current_path
+            .as_deref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let mut sub = String::new();
+        for part in [format_label, artist, file_name] {
+            if part.is_empty() {
+                continue;
+            }
             if !sub.is_empty() {
                 sub.push_str("  ·  ");
             }
-            sub.push_str(&artist);
+            sub.push_str(&part);
         }
         sub
     }
@@ -553,7 +572,7 @@ impl GuiApp {
                     )
                     .clicked()
                     {
-                        self.show_queue = !self.show_queue;
+                        self.toggle_queue();
                     }
                     if let Some(notice) = &self.notice {
                         ui.label(
@@ -593,6 +612,7 @@ impl GuiApp {
             return;
         }
         let theme = self.theme.clone();
+        let reveal = std::mem::take(&mut self.queue_reveal);
         let mut action = None;
         egui::Panel::left("queue")
             .default_size(230.0)
@@ -603,6 +623,7 @@ impl GuiApp {
                         queue,
                         self.current_path.as_deref(),
                         self.shuffle,
+                        reveal,
                         &theme,
                     );
                 }

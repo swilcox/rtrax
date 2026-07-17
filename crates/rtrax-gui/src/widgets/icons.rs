@@ -24,6 +24,8 @@ pub enum Icon {
     Compact,
     /// Paint palette with theme-colored dots — theme cycler.
     Palette,
+    /// Crossing arrows — shuffle play order.
+    Shuffle,
 }
 
 pub fn icon_button(ui: &mut egui::Ui, icon: Icon, tooltip: &str, theme: &Theme) -> Response {
@@ -235,6 +237,23 @@ fn draw_icon(painter: &egui::Painter, r: Rect, icon: Icon, color: Color32, theme
                 Pos2::new(r.center().x + gap, r.center().y - 3.2),
                 Pos2::new(r.right(), r.center().y + 3.2),
             )));
+        }
+        Icon::Shuffle => {
+            // Two crossing lines, each ending in a right-pointing arrowhead.
+            let stroke = Stroke::new(1.4, color);
+            let head_w = 3.6;
+            let x0 = r.left();
+            let x1 = r.right() - head_w;
+            let y_top = r.top() + 2.2;
+            let y_bot = r.bottom() - 2.2;
+            painter.line_segment([Pos2::new(x0, y_top), Pos2::new(x1, y_bot)], stroke);
+            painter.line_segment([Pos2::new(x0, y_bot), Pos2::new(x1, y_top)], stroke);
+            for y in [y_top, y_bot] {
+                painter.add(tri_right(Rect::from_min_max(
+                    Pos2::new(x1 - 0.4, y - 2.0),
+                    Pos2::new(r.right(), y + 2.0),
+                )));
+            }
         }
         Icon::Palette => {
             // Palette disc with three theme-colored paint dots.

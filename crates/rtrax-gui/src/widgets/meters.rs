@@ -47,29 +47,33 @@ pub fn show(ui: &mut egui::Ui, meters: &ChannelMeters, theme: &Theme) {
         });
 }
 
-/// One horizontal bar: dim track, themed fill going hot above the threshold,
-/// peak-hold tick.
+/// One horizontal bar: recessed track, three-zone gradient fill
+/// (low → mid → hot, like the TUI meters), peak-hold tick.
+///
+/// The zones matter for themes whose `meter_low` sits close to the track
+/// color (e.g. muted palettes): the mid/high zones carry the contrast.
 pub fn bar(painter: &egui::Painter, rect: Rect, env: Envelope, theme: &Theme) {
-    const HOT: f32 = 0.85;
-    painter.rect_filled(rect, CornerRadius::same(2), theme.track);
+    // Recess the track toward the background so even a dark fill separates.
+    let track = crate::theme::lerp_color(theme.bg, theme.track, 0.55);
+    painter.rect_filled(rect, CornerRadius::same(2), track);
 
     let level = env.smoothed.clamp(0.0, 1.0);
     if level * rect.width() >= 1.0 {
-        let fill_w = rect.width() * level.min(HOT);
-        painter.rect_filled(
-            Rect::from_min_size(rect.min, egui::vec2(fill_w, rect.height())),
-            CornerRadius::same(2),
-            theme.fill,
-        );
-        if level > HOT {
-            let hot_x = rect.left() + rect.width() * HOT;
+        let zones = [
+            (0.0, 0.60, theme.fill),
+            (0.60, 0.85, theme.peak),
+            (0.85, 1.0, theme.meter_hot),
+        ];
+        for (z0, z1, color) in zones {
+            if level <= z0 {
+                break;
+            }
+            let x0 = rect.left() + rect.width() * z0;
+            let x1 = rect.left() + rect.width() * level.min(z1);
             painter.rect_filled(
-                Rect::from_min_max(
-                    Pos2::new(hot_x, rect.top()),
-                    Pos2::new(rect.left() + rect.width() * level, rect.bottom()),
-                ),
+                Rect::from_min_max(Pos2::new(x0, rect.top()), Pos2::new(x1, rect.bottom())),
                 CornerRadius::same(2),
-                theme.meter_hot,
+                color,
             );
         }
     }
@@ -83,7 +87,7 @@ pub fn bar(painter: &egui::Painter, rect: Rect, env: Envelope, theme: &Theme) {
                 Pos2::new(x + 1.0, rect.bottom()),
             ),
             CornerRadius::ZERO,
-            theme.peak,
+            theme.fg,
         );
     }
 }
