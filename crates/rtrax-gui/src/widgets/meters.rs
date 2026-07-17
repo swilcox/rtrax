@@ -70,9 +70,20 @@ pub fn bar(painter: &egui::Painter, rect: Rect, env: Envelope, theme: &Theme) {
             }
             let x0 = rect.left() + rect.width() * z0;
             let x1 = rect.left() + rect.width() * level.min(z1);
+            // Round only the outer ends of the whole bar; zone boundaries
+            // meet as square butt-joints so the fill reads as one bar.
+            let first = z0 == 0.0;
+            let last = level <= z1;
+            let radius = 2;
+            let corner = CornerRadius {
+                nw: if first { radius } else { 0 },
+                sw: if first { radius } else { 0 },
+                ne: if last { radius } else { 0 },
+                se: if last { radius } else { 0 },
+            };
             painter.rect_filled(
                 Rect::from_min_max(Pos2::new(x0, rect.top()), Pos2::new(x1, rect.bottom())),
-                CornerRadius::same(2),
+                corner,
                 color,
             );
         }
