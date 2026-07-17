@@ -28,7 +28,7 @@ pub struct Theme {
     pub dim: Color32,
     /// Markers, notices, drop hints (the TUI's `accent`).
     pub accent: Color32,
-    // Meters / progress.
+    // Meters / progress: the three bar zones (low/mid/high), TUI-style.
     pub fill: Color32,
     pub peak: Color32,
     pub meter_hot: Color32,

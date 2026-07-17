@@ -417,9 +417,12 @@ pub fn load_module(path: &Path) -> Result<LoadedModule> {
     let mut module = Module::create(&mut file, Logger::None, &[])
         .map_err(|_| anyhow!("libopenmpt could not parse {}", path.display()))?;
 
-    let title = module
-        .get_metadata(MetadataKey::ModuleTitle)
-        .unwrap_or_default();
+    let title = title_or_filename(
+        module
+            .get_metadata(MetadataKey::ModuleTitle)
+            .unwrap_or_default(),
+        path,
+    );
     let type_long = module
         .get_metadata(MetadataKey::TypeName)
         .unwrap_or_default();
@@ -457,6 +460,17 @@ pub fn load_module(path: &Path) -> Result<LoadedModule> {
         tracker,
         pattern_cache,
     })
+}
+
+/// Untitled modules display as their file name (no directory) — better than
+/// a blank header, and common enough that it deserves a real fallback.
+fn title_or_filename(title: String, path: &Path) -> String {
+    if !title.trim().is_empty() {
+        return title;
+    }
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or(title)
 }
 
 pub fn publish_loaded_metadata(state: &SharedState, loaded: &LoadedModule) {
@@ -547,5 +561,17 @@ mod tests {
     fn downsampler_targets_fft_ring_rate_for_common_sample_rates() {
         assert_eq!(downsampled_frames(44_100, 44_100), FFT_RING_RATE_HZ);
         assert_eq!(downsampled_frames(48_000, 48_000), FFT_RING_RATE_HZ);
+    }
+
+    #[test]
+    fn untitled_modules_fall_back_to_file_name() {
+        let path = Path::new("/mods/deep/cool_song.xm");
+        assert_eq!(
+            title_or_filename(String::new(), path),
+            "cool_song.xm",
+            "empty title uses the file name, no directory"
+        );
+        assert_eq!(title_or_filename("   ".into(), path), "cool_song.xm");
+        assert_eq!(title_or_filename("Real Title".into(), path), "Real Title");
     }
 }

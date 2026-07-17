@@ -2,6 +2,7 @@
 //! jump. Interactions come back to the app as an `Action`.
 
 use crate::theme::Theme;
+use crate::widgets::icons::{toggle_icon_button, Icon};
 use eframe::egui::{self, RichText};
 use rtrax_core::playlist::Playlist;
 use std::path::{Path, PathBuf};
@@ -16,6 +17,7 @@ pub fn show(
     queue: &Playlist,
     current: Option<&Path>,
     shuffle: bool,
+    reveal_current: bool,
     theme: &Theme,
 ) -> Option<Action> {
     let mut action = None;
@@ -29,11 +31,9 @@ pub fn show(
                 .monospace(),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let label = RichText::new("shuffle")
-                .monospace()
-                .size(11.0)
-                .color(if shuffle { theme.fill } else { theme.dim });
-            if ui.selectable_label(shuffle, label).clicked() {
+            if toggle_icon_button(ui, Icon::Shuffle, shuffle, "shuffle play order (z)", theme)
+                .clicked()
+            {
                 action = Some(Action::ToggleShuffle);
             }
         });
@@ -57,7 +57,16 @@ pub fn show(
                     } else {
                         theme.fg.gamma_multiply(0.8)
                     });
-                if ui.selectable_label(is_current, text).clicked() && !is_current {
+                let response = ui.selectable_label(is_current, text);
+                if is_current && reveal_current {
+                    // Put the playing track a third of the way down the
+                    // viewport; the scroll clamp turns this into "just make
+                    // it visible" near the ends of the list.
+                    let clip = ui.clip_rect();
+                    let target_y = clip.top() + clip.height() / 3.0;
+                    ui.scroll_with_delta(egui::vec2(0.0, target_y - response.rect.top()));
+                }
+                if response.clicked() && !is_current {
                     action = Some(Action::Play(path.clone()));
                 }
             }
