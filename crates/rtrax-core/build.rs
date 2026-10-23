@@ -8,6 +8,7 @@
 use std::process::Command;
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=PKG_CONFIG_PATH");
     println!("cargo:rerun-if-env-changed=RTRAX_OPENMPT_LIB_DIR");
 
@@ -24,16 +25,30 @@ fn main() {
     }
 
     // Last-ditch fallbacks for common install locations.
-    for path in [
+    let candidates = [
         "/opt/homebrew/lib", // macOS / Apple Silicon brew
         "/usr/local/lib",    // macOS / Intel brew, FreeBSD
         "/usr/lib/x86_64-linux-gnu",
         "/usr/lib/aarch64-linux-gnu",
-    ] {
+    ];
+    let mut found = false;
+    for path in candidates {
         if std::path::Path::new(path).join("libopenmpt.so").exists()
             || std::path::Path::new(path).join("libopenmpt.dylib").exists()
         {
             println!("cargo:rustc-link-search=native={path}");
+            found = true;
+        }
+    }
+
+    // Nothing found: watch the candidate library paths so installing
+    // libopenmpt after a failed build re-runs this script instead of reusing
+    // the cached empty result. Cargo treats a missing path as changed, so this
+    // re-runs on every build until the library shows up.
+    if !found {
+        for path in candidates {
+            println!("cargo:rerun-if-changed={path}/libopenmpt.dylib");
+            println!("cargo:rerun-if-changed={path}/libopenmpt.so");
         }
     }
 }
